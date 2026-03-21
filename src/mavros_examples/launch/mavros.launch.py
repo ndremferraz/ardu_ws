@@ -5,7 +5,7 @@ import os
 
 def generate_launch_description():
     config = os.path.join(
-        get_package_share_directory('my_drone_bringup'),
+        get_package_share_directory('mavros_examples'),
         'config',
         'new_apm_config.yaml'
     )
