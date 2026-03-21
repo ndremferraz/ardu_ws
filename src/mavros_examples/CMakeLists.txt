@@ -29,6 +29,10 @@ install(PROGRAMS
   RENAME flight_task_control
 )
 
+install(DIRECTORY launch
+  DESTINATION share/${PROJECT_NAME}
+)
+
 if(BUILD_TESTING)
   # NOTE(vooon): Does not support our custom triple-license, tiered to make it to work.
   list(APPEND AMENT_LINT_AUTO_EXCLUDE ament_cmake_copyright)
