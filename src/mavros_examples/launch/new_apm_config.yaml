@@ -1,284 +1,311 @@
-# Common configuration for APM2 autopilot
+# =============================================================================
+# new_apm_config.yaml
 #
-/**:
-  ros__parameters:
-    startup_px4_usb_quirk: false
+# Purpose:
+#   Minimal MAVROS ROS 2 config for:
+#   - ArduPilot (Cube Orange+)
+#   - MAVROS on ROS 2
+#   - External pose coming from a ROS 2 visual estimator
+#   - GUIDED mode / local navigation without GPS
+#
+# Important:
+#   This file configures MAVROS behavior only.
+#   It does NOT configure the ArduPilot EKF source selection.
+#   EKF3 / ExternalNav / no-GPS settings must still be set on the flight
+#   controller in QGroundControl or Mission Planner.
+#
+# Design choice:
+#   Keep only the sections that matter for:
+#   - heartbeat/system health
+#   - time sync
+#   - local position output
+#   - incoming external vision pose
+#   - outgoing local setpoints
+# =============================================================================
 
-# --- system plugins ---
 
-# sys_status
-/**/sys:
+# -----------------------------------------------------------------------------
+# /mavros/sys
+#
+# "sys" = system / heartbeat / diagnostics plugin parameters.
+#
+# Why keep this:
+#   MAVROS sends a heartbeat to the FCU and also monitors connection health.
+#   This section is useful even in a minimal config.
+#
+# Notes:
+#   - min_voltage only affects MAVROS diagnostics/warnings, not flight control.
+#   - heartbeat_mav_type tells ArduPilot what kind of MAVLink companion this is.
+#   - conn_timeout controls how long MAVROS waits before considering the FCU
+#     disconnected.
+# -----------------------------------------------------------------------------
+/mavros/sys:
   ros__parameters:
-    min_voltage: [10.0]   # diagnostics min voltage, use a vector i.e. [16.2, 16.0] for multiple batteries, up-to 10 are supported
-                          # to achieve the same on a ROS launch file do: <rosparam param="sys/min_voltage">[16.2, 16.0]</rosparam>
-    disable_diag: false   # disable all sys_status diagnostics, except heartbeat
-    heartbeat_rate: 1.0   # send heartbeat rate in Hertz
+    # Diagnostic minimum battery voltage threshold seen by MAVROS.
+    # This is only for diagnostics on the ROS side.
+    # Adjust if you want cleaner warnings for your battery pack.
+    min_voltage: [10.0]
+
+    # If true, disable most sys_status diagnostics.
+    # Leave false while debugging.
+    disable_diag: false
+
+    # MAVROS heartbeat send rate [Hz].
+    heartbeat_rate: 1.0
+
+    # MAV type reported by MAVROS to the flight controller.
+    # The default apm config uses ONBOARD_CONTROLLER, which is appropriate
+    # for a Jetson companion computer.
     heartbeat_mav_type: "ONBOARD_CONTROLLER"
-    conn_timeout: 10.0    # heartbeat timeout in seconds
 
-# sys_time
-/**/time:
+    # Timeout in seconds before MAVROS reports FCU connection timeout.
+    conn_timeout: 10.0
+
+
+# -----------------------------------------------------------------------------
+# /mavros/time
+#
+# Time synchronization behavior.
+#
+# Why keep this:
+#   MAVROS and ArduPilot exchange time information. For logging, timing, and
+#   some estimator integrations, consistent timestamps are helpful.
+#
+# Notes:
+#   - The current default apm config uses MAVLINK time sync.
+#   - If you later suspect timesync is causing issues, this is one of the first
+#     sections to inspect.
+# -----------------------------------------------------------------------------
+/mavros/time:
   ros__parameters:
-    time_ref_source: "fcu"    # time_reference source
+    # Source used for /time_reference messages.
+    # "fcu" means use the flight controller time as the reference source.
+    time_ref_source: "fcu"
+
+    # Time sync method. The default apm config uses MAVLINK.
     timesync_mode: MAVLINK
-    timesync_avg_alpha: 0.6   # timesync averaging factor
-    timesync_rate: 10.0       # TIMESYNC rate in Hertz (feature disabled if 0.0)
-    system_time_rate: 1.0     # send system time to FCU rate in Hertz (disabled if 0.0)
 
-# --- mavros plugins (alphabetical order) ---
+    # Averaging factor for timesync filter.
+    timesync_avg_alpha: 0.6
 
-# 3dr_radio
-/**/tdr_radio:
+    # TIMESYNC request rate [Hz].
+    # Default apm config uses 10.0 Hz.
+    # You can leave this as-is unless you have a reason to reduce traffic.
+    timesync_rate: 10.0
+
+    # SYSTEM_TIME send rate [Hz].
+    system_time_rate: 1.0
+
+
+# -----------------------------------------------------------------------------
+# /mavros/local_position
+#
+# Local position reported by MAVROS from FCU estimates.
+#
+# Why keep this:
+#   Useful for seeing what ArduPilot thinks the vehicle pose is after fusing
+#   your external vision input.
+#
+# Notes:
+#   - tf.send false avoids broadcasting TF unless you specifically want it.
+#   - frame_id "map" and child "base_link" are conventional and align well with
+#     most ROS navigation stacks.
+# -----------------------------------------------------------------------------
+/mavros/local_position:
   ros__parameters:
-    low_rssi: 40  # raw rssi lower level for diagnostics
-
-# actuator_control
-# None
-
-# command
-/**/cmd:
-  ros__parameters:
-    use_comp_id_system_control: false   # quirk for some old FCUs
-
-# dummy
-# None
-
-# ftp
-# None
-
-# global_position
-/**/global_position:
-  ros__parameters:
-    frame_id: "map"               # origin frame
-    child_frame_id: "base_link"   # body-fixed frame
-    rot_covariance: 99999.0       # covariance for attitude?
-    gps_uere: 1.0                 # User Equivalent Range Error (UERE) of GPS sensor (m)
-    use_relative_alt: true        # use relative altitude for local coordinates
-    tf.send: false                # send TF?
-    tf.frame_id: "map"            # TF frame_id
-    tf.global_frame_id: "earth"   # TF earth frame_id
-    tf.child_frame_id: "base_link"  # TF child_frame_id
-
-# imu_pub
-/**/imu:
-  ros__parameters:
-    frame_id: "base_link"
-    # need find actual values
-    linear_acceleration_stdev: 0.0003
-    angular_velocity_stdev: 0.0003490659  # 0.02 degrees
-    orientation_stdev: 1.0
-    magnetic_stdev: 0.0
-
-# local_position
-/**/local_position:
-  ros__parameters:
+    # Frame name for local position messages published by MAVROS.
     frame_id: "map"
+
+    # Whether MAVROS should publish a TF transform for local position.
+    # Keep false unless you intentionally want MAVROS to own this transform.
     tf.send: false
+
+    # TF parent and child names if tf.send is turned on.
     tf.frame_id: "map"
     tf.child_frame_id: "base_link"
+
+    # Whether to also publish FCU frame TF.
     tf.send_fcu: false
 
-# param
-# None, used for FCU params
 
-# rc_io
-# None
-
-# setpoint_accel
-/**/setpoint_accel:
+# -----------------------------------------------------------------------------
+# /mavros/vision_pose
+#
+# This is the key section for your setup.
+#
+# Purpose:
+#   Receives external pose from ROS and forwards it to the FCU as vision/external
+#   navigation input.
+#
+# How you will likely use it:
+#   Your VIO / SLAM / custom estimator publishes:
+#     geometry_msgs/msg/PoseStamped
+#   to:
+#     /mavros/vision_pose/pose
+#
+# Design choice:
+#   tf.listen = false
+#   This means MAVROS listens to the topic directly instead of pulling a TF
+#   transform.
+#
+# Use topic mode if:
+#   - your estimator directly publishes PoseStamped
+#   - you want simpler debugging
+#
+# Switch to TF mode only if your estimator naturally publishes map->base_link TF.
+# -----------------------------------------------------------------------------
+/mavros/vision_pose:
   ros__parameters:
-    send_force: false
+    tf:
+      # If false, MAVROS listens to the topic subscriber interface
+      # (e.g. /mavros/vision_pose/pose).
+      # If true, MAVROS ignores the topic subscriber and instead listens to TF.
+      listen: false
 
-# setpoint_attitude
-/**/setpoint_attitude:
-  ros__parameters:
-    reverse_thrust: false       # allow reversed thrust
-    use_quaternion: false       # enable PoseStamped topic subscriber
-    tf.listen: false            # enable tf listener (disable topic subscribers)
-    tf.frame_id: "map"
-    tf.child_frame_id: "target_attitude"
-    tf.rate_limit: 50.0
+      # Only used when tf.listen = true.
+      # Parent frame MAVROS should look for.
+      frame_id: "map"
 
-# setpoint_raw
-/**/setpoint_raw:
-  ros__parameters:
-    thrust_scaling: 1.0         # specify thrust scaling (normalized, 0 to 1) for thrust (like PX4)
+      # Only used when tf.listen = true.
+      # Child frame MAVROS should look for.
+      child_frame_id: "vision_estimate"
 
-# setpoint_position
-/**/setpoint_position:
+      # Max TF polling / forwarding rate when TF mode is used.
+      rate_limit: 30.0
+
+
+# -----------------------------------------------------------------------------
+# /mavros/setpoint_position
+#
+# Position setpoint interface used in GUIDED mode.
+#
+# Why keep this:
+#   If you later command local position targets from ROS, this section controls
+#   the interpretation of those setpoints.
+#
+# Key setting:
+#   mav_frame: LOCAL_NED
+#
+# Why LOCAL_NED:
+#   ArduPilot Guided commands and MAVLink local position targets are typically
+#   interpreted in local NED space. MAVROS handles ENU<->NED conversion for ROS.
+# -----------------------------------------------------------------------------
+/mavros/setpoint_position:
   ros__parameters:
-    tf.listen: false            # enable tf listener (disable topic subscribers)
-    tf.frame_id: "map"
-    tf.child_frame_id: "target_position"
-    tf.rate_limit: 50.0
+    tf:
+      # If false, MAVROS listens to the topic subscriber interface.
+      # This is usually what you want.
+      listen: false
+
+      # Only used for TF mode.
+      frame_id: "map"
+      child_frame_id: "target_position"
+
+      # TF read/send limit [Hz] if TF mode is used.
+      rate_limit: 50.0
+
+    # MAVLink coordinate frame used for outbound position setpoints.
+    # Keep LOCAL_NED for ArduPilot Guided local navigation.
     mav_frame: LOCAL_NED
 
-# guided_target
-/**/guided_target:
-  ros__parameters:
-    tf.listen: false           # enable tf listener (disable topic subscribers)
-    tf.frame_id: "map"
-    tf.child_frame_id: "target_position"
-    tf.rate_limit: 50.0
 
-# setpoint_velocity
-/**/setpoint_velocity:
+# -----------------------------------------------------------------------------
+# /mavros/setpoint_velocity
+#
+# Velocity setpoint interface used in GUIDED mode.
+#
+# Why keep this:
+#   For real-time visual servoing / object following / reactive control, sending
+#   velocity commands is often more practical than position targets.
+#
+# Example use:
+#   Publish geometry_msgs/msg/TwistStamped to MAVROS velocity setpoint topic.
+# -----------------------------------------------------------------------------
+/mavros/setpoint_velocity:
   ros__parameters:
+    # Use local NED for outgoing MAVLink velocity targets.
     mav_frame: LOCAL_NED
 
-# vfr_hud
-# None
 
-# waypoint
-/**/mission:
+# -----------------------------------------------------------------------------
+# /mavros/cmd
+#
+# Misc command behavior.
+#
+# Why keep this:
+#   This is in the default apm config and is worth leaving explicit.
+# -----------------------------------------------------------------------------
+/mavros/cmd:
   ros__parameters:
-    pull_after_gcs: true        # update mission if gcs updates
-    use_mission_item_int: true  # use the MISSION_ITEM_INT message instead of MISSION_ITEM
-                                # for uploading waypoints to FCU
+    # Quirk for older FCUs. Default apm config uses false.
+    use_comp_id_system_control: false
 
-# --- mavros extras plugins (same order) ---
 
-# adsb
-# None
+# -----------------------------------------------------------------------------
+# /mavros/setpoint_attitude
+#
+# Optional but useful if you later experiment with attitude/thrust style control.
+#
+# Not required for normal external-pose GUIDED navigation.
+# I include it here commented for reference only.
+# -----------------------------------------------------------------------------
+# /mavros/setpoint_attitude:
+#   ros__parameters:
+#     reverse_thrust: false
+#     use_quaternion: false
+#     tf:
+#       listen: false
+#       frame_id: "map"
+#       child_frame_id: "target_attitude"
+#       rate_limit: 50.0
 
-# debug_value
-# None
 
-# distance_sensor
-## Currently available orientations:
-#    Check http://wiki.ros.org/mavros/Enumerations
-##
-/**/distance_sensor:
-  ros__parameters:
-    config: |
-      rangefinder_pub:
-        id: 0
-        frame_id: "lidar"
-        # orientation: PITCH_270  # sended by FCU
-        field_of_view: 0.0        # XXX TODO
-        send_tf: false
-        sensor_position: {x:  0.0, y:  0.0, z:  -0.1}
-      rangefinder_sub:
-        subscriber: true
-        id: 1
-        orientation: PITCH_270  # only that orientation are supported by APM 3.4+
+# -----------------------------------------------------------------------------
+# /mavros/guided_target
+#
+# Optional. The default apm config contains this.
+# Usually not needed unless you know you are using that specific plugin path.
+# Leaving it out keeps your config simpler.
+# -----------------------------------------------------------------------------
+# /mavros/guided_target:
+#   ros__parameters:
+#     tf:
+#       listen: false
+#       frame_id: "map"
+#       child_frame_id: "target_position"
+#       rate_limit: 50.0
 
-# image_pub
-/**/image:
-  ros__parameters:
-    frame_id: "px4flow"
 
-# fake_gps
-/**/fake_gps:
-  ros__parameters:
-    # select data source
-    use_mocap: true               # ~mocap/pose
-    mocap_transform: false        # ~mocap/tf instead of pose
-    mocap_withcovariance: false   # ~mocap/pose uses PoseWithCovarianceStamped Message
-    use_vision: false             # ~vision (pose)
-    use_hil_gps: true
-    gps_id: 4
-    # origin (default: Zürich)
-    geo_origin.lat: 47.3667       # latitude [degrees]
-    geo_origin.lon: 8.5500        # longitude [degrees]
-    geo_origin.alt: 408.0         # altitude (height over the WGS-84 ellipsoid) [meters]
-    eph: 2.0
-    epv: 2.0
-    horiz_accuracy: 0.5
-    vert_accuracy: 0.5
-    speed_accuracy: 0.0
-    satellites_visible: 6     # virtual number of visible satellites
-    fix_type: 3               # type of GPS fix (default: 3D)
-    tf.listen: false
-    tf.send: false            # send TF?
-    tf.frame_id: "map"        # TF frame_id
-    tf.child_frame_id: "fix"  # TF child_frame_id
-    tf.rate_limit: 10.0       # TF rate
-    gps_rate: 5.0             # GPS data publishing rate
+# -----------------------------------------------------------------------------
+# /mavros/fake_gps
+#
+# Do NOT enable this for your primary setup.
+#
+# Why:
+#   Your intended architecture is ExternalNav / vision pose into EKF3,
+#   not pretending your visual system is GPS.
+#
+# Keep fake_gps disabled unless you deliberately want GPS emulation.
+# -----------------------------------------------------------------------------
+# /mavros/fake_gps:
+#   ros__parameters:
+#     use_mocap: false
+#     use_vision: false
+#     use_hil_gps: false
 
-# landing_target
-/**/landing_target:
-  ros__parameters:
-    listen_lt: false
-    mav_frame: "LOCAL_NED"
-    land_target_type: "VISION_FIDUCIAL"
-    image.width: 640              # [pixels]
-    image.height: 480
-    camera.fov_x: 2.0071286398    # default: 115 [degrees]
-    camera.fov_y: 2.0071286398
-    tf.send: true
-    tf.listen: false
-    tf.frame_id: "landing_target"
-    tf.child_frame_id: "camera_center"
-    tf.rate_limit: 10.0
-    target_size: {x: 0.3, y: 0.3}
 
-# mocap_pose_estimate
-/**/mocap:
-  ros__parameters:
-    # select mocap source
-    use_tf: false   # ~mocap/tf
-    use_pose: true  # ~mocap/pose
-
-# mount_control
-/**/mount:
-  ros__parameters:
-    debounce_s: 4.0
-    err_threshold_deg: 10.0
-    negate_measured_roll: false
-    negate_measured_pitch: false
-    negate_measured_yaw: false
-
-# odom
-/**/odometry:
-  ros__parameters:
-    fcu.odom_parent_id_des: "map"   # desired parent frame rotation of the FCU's odometry
-    fcu.odom_child_id_des: "map"    # desired child frame rotation of the FCU's odometry
-
-# px4flow
-/**/px4flow:
-  ros__parameters:
-    frame_id: "px4flow"
-    ranger_fov: 0.118682      # 6.8 degrees at 5 meters, 31 degrees at 1 meter
-    ranger_min_range: 0.3     # meters
-    ranger_max_range: 5.0     # meters
-
-# vision_pose_estimate
-/**/vision_pose:
-  ros__parameters:
-    tf.listen: false           # enable tf listener (disable topic subscribers)
-    tf.frame_id: "map"
-    tf.child_frame_id: "vision_estimate"
-    tf.rate_limit: 10.0
-
-# vision_speed_estimate
-/**/vision_speed:
-  ros__parameters:
-    listen_twist: true    # enable listen to twist topic, else listen to vec3d topic
-    twist_cov: true       # enable listen to twist with covariance topic
-
-# vibration
-/**/vibration:
-  ros__parameters:
-    frame_id: "base_link"
-
-# wheel_odometry
-/**/wheel_odometry:
-  ros__parameters:
-    count: 2                      # number of wheels to compute odometry
-    use_rpm: false                # use wheel's RPM instead of cumulative distance to compute odometry
-    wheel0: {x: 0.0, y: -0.15, radius: 0.05}  # x-, y-offset (m,NED) and radius (m)
-    wheel1: {x: 0.0, y:  0.15, radius: 0.05}  # x-, y-offset (m,NED) and radius (m)
-    send_raw: true                # send wheel's RPM and cumulative distance (~/wheel_odometry/rpm, ~/wheel_odometry/distance)
-    send_twist: false             # send geometry_msgs/TwistWithCovarianceStamped instead of nav_msgs/Odometry
-    frame_id: "map"               # origin frame
-    child_frame_id: "base_link"   # body-fixed frame
-    vel_error: 0.1                # wheel velocity measurement error 1-std (m/s)
-    tf.send: true
-    tf.frame_id: "map"
-    tf.child_frame_id: "base_link"
-
-# camera
-/**/camera:
-  ros__parameters:
-    frame_id: "base_link"
+# -----------------------------------------------------------------------------
+# /mavros/vision_speed
+#
+# Optional.
+# The stock apm_pluginlists.yaml deny-lists vision_speed_estimate by default.
+#
+# Do not add this unless:
+#   - your estimator outputs trustworthy linear velocity, and
+#   - you specifically want to feed that path through MAVROS, and
+#   - you also remove it from the plugin denylist.
+# -----------------------------------------------------------------------------
+# /mavros/vision_speed:
+#   ros__parameters:
+#     listen_twist: true
+#     twist_cov: true
