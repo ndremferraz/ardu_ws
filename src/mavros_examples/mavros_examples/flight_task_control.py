@@ -37,6 +37,10 @@ class TaskControl(Node):
     def __init__(self):
         super().__init__('task_control')
 
+        self.armed = False
+        self.guided = False
+        self.connected = False
+
         # Service clients
         self.arming_client = self.create_client(CommandBool, '/mavros/cmd/arming')
         self.set_mode_client = self.create_client(SetMode, '/mavros/set_mode')
@@ -44,10 +48,20 @@ class TaskControl(Node):
         self.land_client = self.create_client(CommandTOL, '/mavros/cmd/land')
         self.set_home_client = self.create_client(CommandHome, '/mavros/cmd/set_home')
 
+
+        self.subscriber_ = self.create_subscription(State, '/mavros/state', self.status_check , 1)
         # Wait for services
         self.get_logger().info('Waiting for MAVROS services...')
         self.wait_for_services()
         self.get_logger().info('MAVROS services are ready!')
+
+    def status_check(self, status):
+
+        self.armed = status.armed
+        self.guided = status.guided
+        self.connected = status.connected
+
+
 
     def wait_for_services(self):
         """Wait for all services to be available."""
@@ -206,34 +220,33 @@ def main(args=None):
 
         time.sleep(2)
 
-        # Set home position
+        # Wait until MAVROS is connected and state messages are arriving
+        while rclpy.ok() and not task_control.connected:
+            rclpy.spin_once(task_control, timeout_sec=0.5)
+            task_control.get_logger().info('Waiting for FCU connection...')
+
+        # Optional but usually required for ArduPilot takeoff through MAVROS
+        if not task_control.guided:
+            task_control.get_logger().info('Setting GUIDED mode...')
+            if not task_control.set_mode('GUIDED'):
+                task_control.get_logger().error('Failed to enter GUIDED mode')
+                return
+
+        # Only take off if the vehicle is already armed
+        while rclpy.ok() and not task_control.armed:
+            rclpy.spin_once(task_control, timeout_sec=0.5)
+            task_control.get_logger().info('Waiting for vehicle to become armed...')
+
+        # Set home position after connection is confirmed
         task_control.get_logger().info('Setting home position to current location...')
         if not task_control.set_home_current():
             task_control.get_logger().warn('Failed to set home position, continuing anyway...')
-        time.sleep(1)
 
-        # Set to GUIDED mode
-        task_control.get_logger().info('Setting mode to GUIDED...')
-        if not task_control.set_mode('GUIDED'):
-            task_control.get_logger().error('Failed to set GUIDED mode. Exiting...')
-            return
-        time.sleep(2)
-
-        # Arm the vehicle
-        task_control.get_logger().info('Arming the vehicle...')
-        if not task_control.arm():
-            task_control.get_logger().error('Failed to arm vehicle. Exiting...')
-            return
-        time.sleep(2)
-
-        # Takeoff to 5 meters
         task_control.get_logger().info('Taking off to 5 meters...')
-        if not task_control.takeoff(5.0):
-            task_control.get_logger().error('Failed to send takeoff command. Landing...')
-            task_control.land()
+        if not task_control.takeoff(2.0):
+            task_control.get_logger().error('Failed to send takeoff command')
             return
-        task_control.get_logger().info('Drone is taking off...')
-        time.sleep(10)  # Wait for takeoff to complete
+
 
         task_control.get_logger().info('=== Example 1 Complete ===')
 
