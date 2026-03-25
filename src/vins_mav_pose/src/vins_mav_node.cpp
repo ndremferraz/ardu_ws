@@ -66,31 +66,33 @@ private:
                 vins_history_.size(), vicon_history_.size());
   }
 
-  // Dedicated function for VINS recording/logging
-  void record_vins(const geometry_msgs::msg::Pose& pose) const
+  void record_vins(const geometry_msgs::msg::PoseWithCovarianceStamped::SharedPtr msg)
   {
-    // Logs once every 1000ms to avoid terminal spam
-    RCLCPP_INFO_THROTTLED(this->get_logger(), *this->get_clock(), 1000,
-      "VINS Recording -> x: %.2f, y: %.2f, z: %.2f", 
-      pose.position.x, pose.position.y, pose.position.z);
+    geometry_msgs::msg::PoseStamped entry;
+    entry.header = msg->header;
+    entry.pose = msg->pose.pose;
+    vins_history_.push_back(entry);
   }
 
-  // Dedicated function for Vicon recording/logging
-  void record_vicon(const geometry_msgs::msg::Pose& pose) const
+  // Dedicated function to record Vicon data into the vector
+  void record_vicon(const geometry_msgs::msg::PoseStamped::SharedPtr msg)
   {
-    RCLCPP_INFO_THROTTLED(this->get_logger(), *this->get_clock(), 1000,
-      "VICON Recording -> x: %.2f, y: %.2f, z: %.2f", 
-      pose.position.x, pose.position.y, pose.position.z);
+    vicon_history_.push_back(*msg);
   }
 
-  size_t max_buffer_size_;
+}
 
-  rclcpp::Publisher<geometry_msgs::msg::PoseStamped>::SharedPtr publisher_;
-  rclcpp::Subscription<geometry_msgs::msg::PoseWithCovarianceStamped>::SharedPtr subscription_;
-  rclcpp::Subscription<geometry_msgs::msg::PoseStamped>::SharedPtr vicon_subscription_;
-  rclcpp::TimerBase::SharedPtr stats_timer_;
+size_t max_buffer_size_;
 
-};
+std::vector<PoseRecord> vins_history_;
+std::vector<PoseRecord> vicon_history_;
+
+rclcpp::Publisher<geometry_msgs::msg::PoseStamped>::SharedPtr publisher_;
+rclcpp::Subscription<geometry_msgs::msg::PoseWithCovarianceStamped>::SharedPtr subscription_;
+rclcpp::Subscription<geometry_msgs::msg::PoseStamped>::SharedPtr vicon_subscription_;
+rclcpp::TimerBase::SharedPtr stats_timer_;
+}
+;
 
 int main(int argc, char *argv[])
 {
