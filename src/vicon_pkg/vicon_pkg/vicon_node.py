@@ -3,18 +3,31 @@ import os
 
 import vicon_tracker 
 import rclpy
+import rclpy.node
 import numpy as np
 from rclpy.node import Node
+from scipy.spatial.transform import Rotation as R
 
 from geometry_msgs.msg import PoseStamped
 
 
-class ViconPublisher(Node):
+class ViconPublisher(rclpy.node.Node):
 
     def __init__(self):
         super().__init__('vicon_publisher')
-        self.publisher_ = self.create_publisher(PoseStamped, 'vicon_topic', 3)
+
+        self.declare_parameter('config', 'config.cfg')
+
         timer_period = 0.033  # seconds
+
+        config_name = self.get_parameter('config').get_parameter_value().string_value
+        config_file = os.path.join(os.path.dirname(__file__), config_name) 
+        object_name = load_config(config_file)
+        
+        self.vicon = vicon_tracker.vicon()
+        self.vicon.open(object_name)
+
+        self.publisher_ = self.create_publisher(PoseStamped, 'vicon_topic', 3)
         self.timer = self.create_timer(timer_period, self.timer_callback)
 
     def timer_callback(self):
@@ -25,22 +38,41 @@ class ViconPublisher(Node):
         pose_msg.header.stamp = self.get_clock().now().to_msg()
         pose_msg.header.frame_id = 'vicon_frame'
 
-        pose_msg.pose.position.x = 1.0
-        pose_msg.pose.position.y = 2.0
-        pose_msg.pose.position.z = 3.0
+        pose_msg.pose.position.x = x_v[0]
+        pose_msg.pose.position.y = x_v[1]
+        pose_msg.pose.position.z = x_v[2]
         
-        # R_vm to quaternion (use the following form x,y,z,w)
-        
-        # x_b = 
-        # q = rot2quat(R_vm) # q = [x,y,z,w]
+        # Convert 3x3 rotation matrix to quaternion [x, y, z, w]
+        q = R.from_matrix(R_vm).as_quat() 
 
-        pose_msg.pose.orientation.x = 0.0
-        pose_msg.pose.orientation.y = 0.0
-        pose_msg.pose.orientation.z = 0.0
-        pose_msg.pose.orientation.w = 1.0
+        pose_msg.pose.orientation.x = q[0]
+        pose_msg.pose.orientation.y = q[1]
+        pose_msg.pose.orientation.z = q[2]
+        pose_msg.pose.orientation.w = q[3]
 
         self.publisher_.publish(pose_msg)
 
+    def load_config(config_file="config.cfg"):
+
+        """Read the Vicon object name from config.cfg."""
+        object_name = "OriginsX@192.168.10.1"  # Default fallback
+        try:
+
+            with open(config_file, 'r') as file:
+                for line in file:
+                    line = line.strip()
+                    if line.startswith("object:"):
+                        object_name = line.split("object:")[1].strip().strip('"')
+                        break
+            self.get_logger().info(f"Loaded Vicon object: {object_name}")
+
+        except FileNotFoundError:
+
+            self.get_logger().info(f"Config file {config_file} not found, using default object: {object_name}")
+        except Exception as e:
+
+            self.get_logger().info(f"Error reading config file: {e}, using default object: {object_name}")
+        return object_name
 
 def main(args=None):
     rclpy.init(args=args)
