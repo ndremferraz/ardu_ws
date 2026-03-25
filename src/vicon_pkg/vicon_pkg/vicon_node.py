@@ -20,9 +20,8 @@ class ViconPublisher(rclpy.node.Node):
 
         timer_period = 0.033  # seconds
 
-        config_name = self.get_parameter('config').get_parameter_value().string_value
-        config_file = os.path.join(os.path.dirname(__file__), config_name) 
-        object_name = load_config(config_file)
+        config_file = self.get_parameter('config').get_parameter_value().string_value 
+        object_name = self.load_config(config_file)
         
         self.vicon = vicon_tracker.vicon()
         self.vicon.open(object_name)
@@ -52,7 +51,7 @@ class ViconPublisher(rclpy.node.Node):
 
         self.publisher_.publish(pose_msg)
 
-    def load_config(config_file="config.cfg"):
+    def load_config(self, config_file="config.cfg"):
 
         """Read the Vicon object name from config.cfg."""
         object_name = "OriginsX@192.168.10.1"  # Default fallback
