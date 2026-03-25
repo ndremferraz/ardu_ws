@@ -70,7 +70,18 @@ private:
   {
     geometry_msgs::msg::PoseStamped entry;
     entry.header = msg->header;
-    entry.pose = msg->pose.pose;
+
+    // Manual extraction of x, y, z from PoseWithCovarianceStamped
+    entry.pose.position.x = msg->pose.pose.position.x;
+    entry.pose.position.y = msg->pose.pose.position.y;
+    entry.pose.position.z = msg->pose.pose.position.z;
+
+    // Manual extraction of orientation
+    entry.pose.orientation.x = msg->pose.pose.orientation.x;
+    entry.pose.orientation.y = msg->pose.pose.orientation.y;
+    entry.pose.orientation.z = msg->pose.pose.orientation.z;
+    entry.pose.orientation.w = msg->pose.pose.orientation.w;
+
     vins_history_.push_back(entry);
   }
 
@@ -79,20 +90,16 @@ private:
   {
     vicon_history_.push_back(*msg);
   }
+  size_t max_buffer_size_;
 
-}
+  std::vector<geometry_msgs::msg::PoseStamped> vins_history_;
+  std::vector<geometry_msgs::msg::PoseStamped> vicon_history_;
 
-size_t max_buffer_size_;
-
-std::vector<PoseRecord> vins_history_;
-std::vector<PoseRecord> vicon_history_;
-
-rclcpp::Publisher<geometry_msgs::msg::PoseStamped>::SharedPtr publisher_;
-rclcpp::Subscription<geometry_msgs::msg::PoseWithCovarianceStamped>::SharedPtr subscription_;
-rclcpp::Subscription<geometry_msgs::msg::PoseStamped>::SharedPtr vicon_subscription_;
-rclcpp::TimerBase::SharedPtr stats_timer_;
-}
-;
+  rclcpp::Publisher<geometry_msgs::msg::PoseStamped>::SharedPtr publisher_;
+  rclcpp::Subscription<geometry_msgs::msg::PoseWithCovarianceStamped>::SharedPtr subscription_;
+  rclcpp::Subscription<geometry_msgs::msg::PoseStamped>::SharedPtr vicon_subscription_;
+  rclcpp::TimerBase::SharedPtr stats_timer_;
+};
 
 int main(int argc, char *argv[])
 {
