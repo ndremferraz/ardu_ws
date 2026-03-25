@@ -40,7 +40,7 @@ private:
     pose_msg.pose = msg->pose.pose;
 
     // Record data
-    record_pose(vins_history_, pose_msg);
+    record_vins(msg->pose.pose);
 
     // Forward if active
     if (this->get_parameter("pose_source").as_string() == "vins")
@@ -52,7 +52,7 @@ private:
   void vicon_callback(const geometry_msgs::msg::PoseStamped::SharedPtr msg) const
   {
     // Publish the message directly
-    record_pose(vicon_history_, pose_msg);
+    record_vicon(msg->pose);
 
     if (this->get_parameter("pose_source").as_string() == "vicon")
     {
@@ -66,17 +66,24 @@ private:
                 vins_history_.size(), vicon_history_.size());
   }
 
-  void record_pose(std::vector<geometry_msgs::msg::PoseStamped> &history, const geometry_msgs::msg::PoseStamped &msg)
+  // Dedicated function for VINS recording/logging
+  void record_vins(const geometry_msgs::msg::Pose& pose) const
   {
-    history.push_back(msg);
-    if (history.size() > max_buffer_size_)
-    {
-      history.erase(history.begin()); // Remove oldest
-    }
+    // Logs once every 1000ms to avoid terminal spam
+    RCLCPP_INFO_THROTTLED(this->get_logger(), *this->get_clock(), 1000,
+      "VINS Recording -> x: %.2f, y: %.2f, z: %.2f", 
+      pose.position.x, pose.position.y, pose.position.z);
   }
+
+  // Dedicated function for Vicon recording/logging
+  void record_vicon(const geometry_msgs::msg::Pose& pose) const
+  {
+    RCLCPP_INFO_THROTTLED(this->get_logger(), *this->get_clock(), 1000,
+      "VICON Recording -> x: %.2f, y: %.2f, z: %.2f", 
+      pose.position.x, pose.position.y, pose.position.z);
+  }
+
   size_t max_buffer_size_;
-  std::vector<geometry_msgs::msg::PoseStamped> vins_history_;
-  std::vector<geometry_msgs::msg::PoseStamped> vicon_history_;
 
   rclcpp::Publisher<geometry_msgs::msg::PoseStamped>::SharedPtr publisher_;
   rclcpp::Subscription<geometry_msgs::msg::PoseWithCovarianceStamped>::SharedPtr subscription_;
