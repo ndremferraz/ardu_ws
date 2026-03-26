@@ -2,6 +2,7 @@
 #include <memory>
 #include <string>
 #include <vector>
+#include <fstream>
 
 #include "geometry_msgs/msg/pose_stamped.hpp"
 #include "geometry_msgs/msg/pose_with_covariance_stamped.hpp"
@@ -27,6 +28,30 @@ public:
     vicon_subscription_ =
         this->create_subscription<geometry_msgs::msg::PoseStamped>(
             "/vicon/pose", 10, std::bind(&PoseForwardNode::vicon_callback, this, _1));
+
+
+  }
+
+  ~PoseForwardNode(){
+
+    // Save VINS history to file
+      std::ofstream vicon_vs_vins_file("vins_history.txt");
+
+      vicon_vs_vins_file << "VINS History:\n";
+      for (const auto& pose : vins_history_) {
+        vicon_vs_vins_file << "Time(sec):" <<pose.header.stamp.sec << "." << pose.header.stamp.nanosec << "XYZ: "
+                << pose.pose.position.x << " " << pose.pose.position.y << " " << pose.pose.position.z << "Pose():"
+                << pose.pose.orientation.x << " " << pose.pose.orientation.y << " "
+                << pose.pose.orientation.z << " " << pose.pose.orientation.w << "\n";
+      }
+      vicon_vs_vins_file << "Vicon History:\n";
+      for (const auto& pose : vicon_history_) {
+        vicon_vs_vins_file << "Time(sec):" << pose.header.stamp.sec << "." << pose.header.stamp.nanosec << "XYZ: "
+                  << pose.pose.position.x << " " << pose.pose.position.y << " " << pose.pose.position.z << "Pose():"
+                  << pose.pose.orientation.x << " " << pose.pose.orientation.y << " "
+                  << pose.pose.orientation.z << " " << pose.pose.orientation.w << "\n";
+      }
+      vicon_vs_vins_file.close();
 
   }
 
