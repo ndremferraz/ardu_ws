@@ -220,27 +220,28 @@ def main(args=None):
 
         time.sleep(2)
 
-        # Wait until MAVROS is connected and state messages are arriving
+
         while rclpy.ok() and not task_control.connected:
             rclpy.spin_once(task_control, timeout_sec=0.5)
             task_control.get_logger().info('Waiting for FCU connection...')
 
-        # Optional but usually required for ArduPilot takeoff through MAVROS
+
         if not task_control.guided:
             task_control.get_logger().info('Setting GUIDED mode...')
             if not task_control.set_mode('GUIDED'):
                 task_control.get_logger().error('Failed to enter GUIDED mode')
                 return
 
-        # Only take off if the vehicle is already armed
+        
         while rclpy.ok() and not task_control.armed:
             rclpy.spin_once(task_control, timeout_sec=0.5)
             task_control.get_logger().info('Waiting for vehicle to become armed...')
 
-        # Set home position after connection is confirmed
+
         task_control.get_logger().info('Setting home position to current location...')
         if not task_control.set_home_current():
             task_control.get_logger().warn('Failed to set home position, continuing anyway...')
+
 
         task_control.get_logger().info('Taking off to 5 meters...')
         if not task_control.takeoff(2.0):
