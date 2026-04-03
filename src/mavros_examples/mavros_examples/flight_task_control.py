@@ -150,25 +150,6 @@ class TaskControl(Node):
             self.get_logger().error('Land service call failed')
             return False
 
-    def set_home_current(self) -> bool:
-        """Set home position to current location."""
-        req = CommandHome.Request()
-        req.current_gps = True
-
-        future = self.set_home_client.call_async(req)
-        rclpy.spin_until_future_complete(self, future)
-
-        if future.result() is not None:
-            if future.result().success:
-                self.get_logger().info('Home position set to current location')
-                return True
-            else:
-                self.get_logger().warn('Failed to set home position')
-                return False
-        else:
-            self.get_logger().error('Set home service call failed')
-            return False
-
 
 def main(args=None):
     rclpy.init(args=args)
@@ -181,12 +162,6 @@ def main(args=None):
         import time
 
         time.sleep(2)
-
-        # Set home position
-        task_control.get_logger().info('Setting home position to current location...')
-        if not task_control.set_home_current():
-            task_control.get_logger().warn('Failed to set home position, continuing anyway...')
-        time.sleep(1)
 
         # Set to GUIDED mode
         task_control.get_logger().info('Setting mode to GUIDED...')
