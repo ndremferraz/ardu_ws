@@ -26,7 +26,7 @@ class ViconPublisher(rclpy.node.Node):
         self.vicon = vicon_tracker.vicon()
         self.vicon.open(object_name)
 
-        self.publisher_ = self.create_publisher(PoseStamped, 'vicon_topic', 3)
+        self.publisher_ = self.create_publisher(PoseStamped, '/vicon/pose', 3)
         self.timer = self.create_timer(timer_period, self.timer_callback)
 
     def timer_callback(self):

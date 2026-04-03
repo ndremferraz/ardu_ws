@@ -72,7 +72,6 @@ private:
 
   void vicon_callback(const geometry_msgs::msg::PoseStamped::SharedPtr msg)  
   {
-    // Publish the message directly
     geometry_msgs::msg::PoseStamped pose_msg;
     pose_msg.header = msg->header;
     pose_msg.pose = msg->pose;
