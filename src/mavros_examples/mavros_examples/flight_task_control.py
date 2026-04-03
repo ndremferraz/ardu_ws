@@ -165,7 +165,7 @@ def main(args=None):
 
         # Set to GUIDED mode
         task_control.get_logger().info('Setting mode to GUIDED...')
-        if not task_control.set_mode('GUIDED'):
+        if not task_control.set_mode('STABILIZE'):
             task_control.get_logger().error('Failed to set GUIDED mode. Exiting...')
             return
         time.sleep(2)
