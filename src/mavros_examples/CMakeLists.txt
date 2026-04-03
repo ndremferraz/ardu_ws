@@ -29,6 +29,14 @@ install(PROGRAMS
   RENAME flight_task_control
 )
 
+# Add Python node task_control
+install(PROGRAMS
+  ${PROJECT_NAME}/flight_task_control2.py
+  DESTINATION lib/${PROJECT_NAME}
+  RENAME flight_task_control2
+)
+
+
 install(DIRECTORY launch
   DESTINATION share/${PROJECT_NAME}
 )

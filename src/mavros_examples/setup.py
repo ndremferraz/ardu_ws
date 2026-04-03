@@ -23,6 +23,7 @@ setup(
     entry_points={
         'console_scripts': [
             'flight_tasks_control = mavros_examples.flight_task_control:main',
+            
         ],
     },
 )
