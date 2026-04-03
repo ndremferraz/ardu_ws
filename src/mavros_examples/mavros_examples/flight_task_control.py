@@ -72,6 +72,20 @@ class MavController(Node):
         pose_stamped.pose = pose
         self.cmd_pos_pub.publish(pose_stamped)
 
+    def goto_xyz_rpy(self, x, y, z, roll, pitch, yaw):
+        pose = Pose()
+        pose.position.x = float(x)
+        pose.position.y = float(y)
+        pose.position.z = float(z)
+
+        qx, qy, qz, qw = quaternion_from_euler(roll, pitch, yaw + PI_2)
+        pose.orientation.x = qx
+        pose.orientation.y = qy
+        pose.orientation.z = qz
+        pose.orientation.w = qw
+
+        self.goto(pose)
+
 
     def _call_service(self, client, request):
         future = client.call_async(request)
