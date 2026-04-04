@@ -5,12 +5,9 @@ import time
 
 import rclpy
 from rclpy.node import Node
-from rclpy.executors import SingleThreadedExecutor
 
-from geometry_msgs.msg import Pose, PoseStamped, Twist
-from mavros_msgs.msg import OverrideRCIn, RCIn
-from mavros_msgs.srv import CommandBool, SetMode, CommandTOL
-
+from geometry_msgs.msg import Pose, PoseStamped
+from mavros_msgs.srv import CommandBool, CommandHome, CommandTOL, SetMode
 
 PI_2 = math.pi / 2.0
 
@@ -34,33 +31,173 @@ def quaternion_from_euler(roll: float, pitch: float, yaw: float):
     return qx, qy, qz, qw
 
 
-class MavController(Node):
-    """
-    A simple ROS 2 object to help interface with MAVROS.
-    """
+class TaskControl(Node):
+    """Control node."""
 
     def __init__(self):
-        super().__init__("mav_control_node")
+        super().__init__('task_control')
 
-        self.pose = Pose()
-        self.last_stamp = self.get_clock().now().to_msg()
-
-        self.cmd_pos_pub = self.create_publisher(
-            PoseStamped,
-            "/mavros/setpoint_position/local",
-            10,
+        # Publisher to setpoint_position topic
+        # We can use this to tell the drone where to go
+        self.cmd_pos_pub = self.create_publisher( PoseStamped,
+            "/mavros/setpoint_position/local",10,
         )
 
-        self.mode_client = self.create_client(SetMode, "/mavros/set_mode")
-        self.arm_client = self.create_client(CommandBool, "/mavros/cmd/arming")
-        self.takeoff_client = self.create_client(CommandTOL, "/mavros/cmd/takeoff")
+        # Service clients
+        self.arming_client = self.create_client(CommandBool, '/mavros/cmd/arming')
+        self.set_mode_client = self.create_client(SetMode, '/mavros/set_mode')
+        self.takeoff_client = self.create_client(CommandTOL, '/mavros/cmd/takeoff')
+        self.land_client = self.create_client(CommandTOL, '/mavros/cmd/land')
+        self.set_home_client = self.create_client(CommandHome, '/mavros/cmd/set_home')
 
-        self.get_logger().info("Waiting for MAVROS services...")
-        self.mode_client.wait_for_service()
-        self.arm_client.wait_for_service()
-        self.takeoff_client.wait_for_service()
-        self.get_logger().info("MAVROS services are available.")
+        # Wait for services
+        self.get_logger().info('Waiting for MAVROS services...')
+        self.wait_for_services()
+        self.get_logger().info('MAVROS services are ready!')
 
+    def wait_for_services(self):
+        """Wait for all services to be available."""
+        services = [
+            self.arming_client,
+            self.set_mode_client,
+            self.takeoff_client,
+            self.land_client,
+            self.set_home_client,
+        ]
+
+        for service in services:
+            while not service.wait_for_service(timeout_sec=1.0):
+                self.get_logger().info('Waiting for service...')
+
+    def arm(self) -> bool:
+        """Arm the quadcopter."""
+        req = CommandBool.Request()
+        req.value = True
+
+        future = self.arming_client.call_async(req)
+        rclpy.spin_until_future_complete(self, future)
+
+        if future.result() is not None:
+            if future.result().success:
+                self.get_logger().info('Vehicle armed successfully')
+                return True
+            else:
+                self.get_logger().warn('Failed to arm vehicle')
+                return False
+        else:
+            self.get_logger().error('Arming service call failed')
+            return False
+
+    def disarm(self) -> bool:
+        """Disarm the quadcopter."""
+        req = CommandBool.Request()
+        req.value = False
+
+        future = self.arming_client.call_async(req)
+        rclpy.spin_until_future_complete(self, future)
+
+        if future.result() is not None:
+            if future.result().success:
+                self.get_logger().info('Vehicle disarmed successfully')
+                return True
+            else:
+                self.get_logger().warn('Failed to disarm vehicle')
+                return False
+        else:
+            self.get_logger().error('Disarming service call failed')
+            return False
+
+    def set_mode(self, mode: str) -> bool:
+        """
+        Set flight mode.
+
+        Common modes: STABILIZED, GUIDED, RTL, LAND
+        """
+        req = SetMode.Request()
+        req.custom_mode = mode
+
+        future = self.set_mode_client.call_async(req)
+        rclpy.spin_until_future_complete(self, future)
+
+        if future.result() is not None:
+            if future.result().mode_sent:
+                self.get_logger().info(f'Mode set to {mode}')
+                return True
+            else:
+                self.get_logger().warn(f'Failed to set mode to {mode}')
+                return False
+        else:
+            self.get_logger().error('Set mode service call failed')
+            return False
+
+    def takeoff(self, altitude: float) -> bool:
+        """
+        Takeoff to specified altitude.
+
+        :param altitude: in meters
+        """
+        req = CommandTOL.Request()
+        req.min_pitch = 0.0
+        req.yaw = 0.0
+        req.latitude = 0.0  # Use current position
+        req.longitude = 0.0
+        req.altitude = altitude
+
+        future = self.takeoff_client.call_async(req)
+        rclpy.spin_until_future_complete(self, future)
+
+        if future.result() is not None:
+            if future.result().success:
+                self.get_logger().info(f'Takeoff command sent. Target altitude: {altitude}m')
+                return True
+            else:
+                self.get_logger().warn('Takeoff command failed')
+                return False
+        else:
+            self.get_logger().error('Takeoff service call failed')
+            return False
+
+    def land(self) -> bool:
+        """Land the quadcopter."""
+        req = CommandTOL.Request()
+        req.min_pitch = 0.0
+        req.yaw = 0.0
+        req.latitude = 0.0
+        req.longitude = 0.0
+        req.altitude = 0.0
+
+        future = self.land_client.call_async(req)
+        rclpy.spin_until_future_complete(self, future)
+
+        if future.result() is not None:
+            if future.result().success:
+                self.get_logger().info('Landing command sent')
+                return True
+            else:
+                self.get_logger().warn('Landing command failed')
+                return False
+        else:
+            self.get_logger().error('Land service call failed')
+            return False
+
+    def set_home_current(self) -> bool:
+        """Set home position to current location."""
+        req = CommandHome.Request()
+        req.current_gps = True
+
+        future = self.set_home_client.call_async(req)
+        rclpy.spin_until_future_complete(self, future)
+
+        if future.result() is not None:
+            if future.result().success:
+                self.get_logger().info('Home position set to current location')
+                return True
+            else:
+                self.get_logger().warn('Failed to set home position')
+                return False
+        else:
+            self.get_logger().error('Set home service call failed')
+            return False
 
     def goto(self, pose: Pose):
         """
@@ -86,125 +223,96 @@ class MavController(Node):
 
         self.goto(pose)
 
+    def hold_xyz_rpy(self, x, y, z, roll, pitch, yaw, hold_time: float, rate_hz: float = 10.0):
+        """Continuously publish a setpoint long enough for the flight controller to track it."""
+        end_time = time.time() + hold_time
+        sleep_time = 1.0 / rate_hz
 
-    def _call_service(self, client, request):
-        future = client.call_async(request)
-        rclpy.spin_until_future_complete(self, future)
-        if future.result() is None:
-            self.get_logger().error("Service call failed.")
-            return None
-        return future.result()
-
-    def arm(self):
-        req = CommandBool.Request()
-        req.value = True
-        resp = self._call_service(self.arm_client, req)
-        if resp is not None:
-            self.get_logger().info(f"Arm response: success={resp.success}")
-        return resp
-
-    def disarm(self):
-        req = CommandBool.Request()
-        req.value = False
-        resp = self._call_service(self.arm_client, req)
-        if resp is not None:
-            self.get_logger().info(f"Disarm response: success={resp.success}")
-        return resp
-
-    def set_mode(self, mode_name: str):
-        req = SetMode.Request()
-        req.base_mode = 0
-        req.custom_mode = mode_name
-        resp = self._call_service(self.mode_client, req)
-        if resp is not None:
-            self.get_logger().info(f"Set mode '{mode_name}': mode_sent={resp.mode_sent}")
-        return resp
-
-    def takeoff(self, height=1.0):
-        """
-        Set GUIDED mode, arm, then issue takeoff command.
-        """
-        self.set_mode("GUIDED")
-        self.arm()
-
-        req = CommandTOL.Request()
-        req.min_pitch = 0.0
-        req.yaw = 0.0
-        req.latitude = 0.0
-        req.longitude = 0.0
-        req.altitude = float(height)
-
-        resp = self._call_service(self.takeoff_client, req)
-        if resp is not None:
-            self.get_logger().info(f"Takeoff response: success={resp.success}")
-        return resp
-
-    def land(self):
-        """
-        Put vehicle in LAND mode.
-        """
-        return self.set_mode("LAND")
+        while time.time() < end_time:
+            self.goto_xyz_rpy(x, y, z, roll, pitch, yaw)
+            time.sleep(sleep_time)
 
 
-def ros2_sleep(node: Node, executor: SingleThreadedExecutor, seconds: float):
-    """
-    Sleep while still spinning callbacks.
-    """
-    end_time = time.time() + seconds
-    while rclpy.ok() and time.time() < end_time:
-        executor.spin_once(timeout_sec=0.1)
-
-
-def simple_demo():
-    rclpy.init()
-
-    controller = MavController()
-    executor = SingleThreadedExecutor()
-    executor.add_node(controller)
+def main(args=None):
+    rclpy.init(args=args)
 
     try:
-        ros2_sleep(controller, executor, 1.0)
+        # Create TaskControl instance
+        task_control = TaskControl()
 
-        controller.get_logger().info("Takeoff")
-        controller.takeoff(0.5)
-        ros2_sleep(controller, executor, 3.0)
+        task_control.get_logger().info('=== Example 1: Basic Flight Sequence ===')
+        import time
 
-        controller.goto_xyz_rpy(0.0, 0.0, 1.2, 0.0, 0.0, 0.0)
-        ros2_sleep(controller, executor, 3.0)
+        time.sleep(2)
 
-        controller.get_logger().info("Waypoint 1: position control")
-        controller.goto_xyz_rpy(0.0, 0.0, 1.2, 0.0, 0.0, -1 * PI_2)
-        ros2_sleep(controller, executor, 2.0)
-        controller.goto_xyz_rpy(0.4, 0.0, 1.2, 0.0, 0.0, -1 * PI_2)
-        ros2_sleep(controller, executor, 3.0)
+        # Set home position
+        task_control.get_logger().info('Setting home position to current location...')
+        if not task_control.set_home_current():
+            task_control.get_logger().warn('Failed to set home position, continuing anyway...')
+        time.sleep(1)
 
-        controller.get_logger().info("Waypoint 2: position control")
-        controller.goto_xyz_rpy(0.4, 0.0, 1.2, 0.0, 0.0, 0.0)
-        ros2_sleep(controller, executor, 2.0)
-        controller.goto_xyz_rpy(0.4, 0.4, 1.2, 0.0, 0.0, 0.0)
-        ros2_sleep(controller, executor, 3.0)
+        # Set to GUIDED mode
+        task_control.get_logger().info('Setting mode to GUIDED...')
+        if not task_control.set_mode('GUIDED'):
+            task_control.get_logger().error('Failed to set GUIDED mode. Exiting...')
+            return
+        time.sleep(2)
 
-        controller.get_logger().info("Waypoint 3: position control")
-        controller.goto_xyz_rpy(0.4, 0.4, 1.2, 0.0, 0.0, PI_2)
-        ros2_sleep(controller, executor, 2.0)
-        controller.goto_xyz_rpy(0.0, 0.4, 1.2, 0.0, 0.0, PI_2)
-        ros2_sleep(controller, executor, 3.0)
+        # Arm the vehicle
+        task_control.get_logger().info('Arming the vehicle...')
+        if not task_control.arm():
+            task_control.get_logger().error('Failed to arm vehicle. Exiting...')
+            return
+        time.sleep(2)
 
-        controller.get_logger().info("Waypoint 4: position control")
-        controller.goto_xyz_rpy(0.0, 0.4, 1.2, 0.0, 0.0, 2 * PI_2)
-        ros2_sleep(controller, executor, 2.0)
-        controller.goto_xyz_rpy(0.0, 0.0, 1.2, 0.0, 0.0, 2 * PI_2)
-        ros2_sleep(controller, executor, 3.0)
+        # Takeoff to 2 meters
+        task_control.get_logger().info('Taking off to 2 meters...')
+        if not task_control.takeoff(2.0):
+            task_control.get_logger().error('Failed to send takeoff command. Landing...')
+            task_control.land()
+            return
+        task_control.get_logger().info('Drone is taking off...')
+        time.sleep(10)  # Wait for takeoff to complete
 
-        controller.get_logger().info("Landing")
-        controller.land()
-        ros2_sleep(controller, executor, 2.0)
+        task_control.get_logger().info('Executing position sequence...')
+        altitude = 2.0
+        move_hold_time = 5.0
+        settle_hold_time = 3.0
+        roll = 0.0
+        pitch = 0.0
+        yaw = 0.0
 
+        waypoints = [
+            ('front', 1.0, 0.0, altitude, move_hold_time),
+            ('origin', 0.0, 0.0, altitude, settle_hold_time),
+            ('back', -1.0, 0.0, altitude, move_hold_time),
+            ('origin', 0.0, 0.0, altitude, settle_hold_time),
+            ('left', 0.0, 1.0, altitude, move_hold_time),
+            ('origin', 0.0, 0.0, altitude, settle_hold_time),
+            ('right', 0.0, -1.0, altitude, move_hold_time),
+        ]
+
+        for name, x, y, z, hold_time in waypoints:
+            task_control.get_logger().info(
+                f'Moving {name}: x={x:.1f}, y={y:.1f}, z={z:.1f}'
+            )
+            task_control.hold_xyz_rpy(x, y, z, roll, pitch, yaw, hold_time)
+
+        task_control.get_logger().info('Landing...')
+        if not task_control.land():
+            task_control.get_logger().error('Failed to send land, land manually')
+            return
+
+        task_control.get_logger().info('=== Example 1 Complete ===')
+
+    except KeyboardInterrupt:
+        task_control.get_logger().info('Flight interrupted by user')
+    except Exception as e:
+        task_control.get_logger().error(f'An error occurred: {e}')
     finally:
-        executor.remove_node(controller)
-        controller.destroy_node()
+        task_control.destroy_node()
         rclpy.shutdown()
 
 
-if __name__ == "__main__":
-    simple_demo()
+if __name__ == '__main__':
+    main()
