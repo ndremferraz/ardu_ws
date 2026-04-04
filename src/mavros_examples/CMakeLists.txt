@@ -15,13 +15,6 @@ find_package(mavros_msgs REQUIRED)
 # Install Python modules
 ament_python_install_package(${PROJECT_NAME})
 
-# Add Python node waypoint_mission_manager
-install(PROGRAMS
-  ${PROJECT_NAME}/waypoint_mission_manager.py
-  DESTINATION lib/${PROJECT_NAME}
-  RENAME waypoint_mission_manager
-)
-
 # Add Python node task_control
 install(PROGRAMS
   ${PROJECT_NAME}/flight_task_control.py

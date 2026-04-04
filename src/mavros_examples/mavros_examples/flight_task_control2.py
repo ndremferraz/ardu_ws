@@ -226,14 +226,14 @@ def main(args=None):
             return
         time.sleep(2)
 
-        # Takeoff to 5 meters
-        task_control.get_logger().info('Taking off to 5 meters...')
-        if not task_control.takeoff(1.0):
+        # Takeoff to 2 meters
+        task_control.get_logger().info('Taking off to 2 meters...')
+        if not task_control.takeoff(2.0):
             task_control.get_logger().error('Failed to send takeoff command. Landing...')
             task_control.land()
             return
         task_control.get_logger().info('Drone is taking off...')
-        time.sleep(10)  # Wait for takeoff to complete
+        time.sleep(60)  # Wait for takeoff to complete
 
         task_control.get_logger().info('Landing...')
         if not task_control.land():
