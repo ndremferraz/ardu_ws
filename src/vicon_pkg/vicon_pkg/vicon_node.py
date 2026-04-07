@@ -37,8 +37,8 @@ class ViconPublisher(rclpy.node.Node):
         pose_msg.header.stamp = self.get_clock().now().to_msg()
         pose_msg.header.frame_id = 'vicon_frame'
 
-        pose_msg.pose.position.x = x_v[0]
-        pose_msg.pose.position.y = x_v[1]
+        pose_msg.pose.position.x = -x_v[1]
+        pose_msg.pose.position.y = x_v[0]
         pose_msg.pose.position.z = x_v[2]
         
         # Convert 3x3 rotation matrix to quaternion [x, y, z, w]
