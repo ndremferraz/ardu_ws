@@ -1,34 +1,8 @@
-#!/usr/bin/env python3
-
-import math
-import time
-
-import rclpy
-from rclpy.node import Node
-
-from geometry_msgs.msg import Pose, PoseStamped
+import rclpy  # noqa: I100
+from geometry_msgs.msg import PoseStamped  # noqa: F401,I100
+from mavros_msgs.msg import State  # noqa: F401
 from mavros_msgs.srv import CommandBool, CommandHome, CommandTOL, SetMode
-
-PI_2 = math.pi / 2.0
-
-
-def quaternion_from_euler(roll: float, pitch: float, yaw: float):
-    """
-    Convert Euler angles to quaternion.
-    """
-    cr = math.cos(roll * 0.5)
-    sr = math.sin(roll * 0.5)
-    cp = math.cos(pitch * 0.5)
-    sp = math.sin(pitch * 0.5)
-    cy = math.cos(yaw * 0.5)
-    sy = math.sin(yaw * 0.5)
-
-    qw = cr * cp * cy + sr * sp * sy
-    qx = sr * cp * cy - cr * sp * sy
-    qy = cr * sp * cy + sr * cp * sy
-    qz = cr * cp * sy - sr * sp * cy
-
-    return qx, qy, qz, qw
+from rclpy.node import Node
 
 
 class TaskControl(Node):
@@ -37,11 +11,10 @@ class TaskControl(Node):
     def __init__(self):
         super().__init__('task_control')
 
-        # Publisher to setpoint_position topic
-        # We can use this to tell the drone where to go
         self.cmd_pos_pub = self.create_publisher( PoseStamped,
-            "/mavros/setpoint_position/local",10,
-        )
+            "/mavros/setpoint_position/local",10)
+
+        self.pose_sub = self.create_subscriber(PoseStamped,"/mavros/local_position/pose", self.pose_callback, 10)
 
         # Service clients
         self.arming_client = self.create_client(CommandBool, '/mavros/cmd/arming')
@@ -68,6 +41,14 @@ class TaskControl(Node):
         for service in services:
             while not service.wait_for_service(timeout_sec=1.0):
                 self.get_logger().info('Waiting for service...')
+
+    def pose_callback(self, data):
+        """
+        Handle local position information
+        """
+        self.timestamp = data.header.stamp
+        self.pose = data.pose
+
 
     def arm(self) -> bool:
         """Arm the quadcopter."""
@@ -180,24 +161,6 @@ class TaskControl(Node):
             self.get_logger().error('Land service call failed')
             return False
 
-    def set_home_current(self) -> bool:
-        """Set home position to current location."""
-        req = CommandHome.Request()
-        req.current_gps = True
-
-        future = self.set_home_client.call_async(req)
-        rclpy.spin_until_future_complete(self, future)
-
-        if future.result() is not None:
-            if future.result().success:
-                self.get_logger().info('Home position set to current location')
-                return True
-            else:
-                self.get_logger().warn('Failed to set home position')
-                return False
-        else:
-            self.get_logger().error('Set home service call failed')
-            return False
 
     def goto(self, pose: Pose):
         """
@@ -215,7 +178,7 @@ class TaskControl(Node):
         pose.position.y = float(y)
         pose.position.z = float(z)
 
-        qx, qy, qz, qw = quaternion_from_euler(roll, pitch, yaw + PI_2)
+        qx, qy, qz, qw = quaternion_from_euler(roll, pitch, yaw)
         pose.orientation.x = qx
         pose.orientation.y = qy
         pose.orientation.z = qz
@@ -223,14 +186,6 @@ class TaskControl(Node):
 
         self.goto(pose)
 
-    def hold_xyz_rpy(self, x, y, z, roll, pitch, yaw, hold_time: float, rate_hz: float = 10.0):
-        """Continuously publish a setpoint long enough for the flight controller to track it."""
-        end_time = time.time() + hold_time
-        sleep_time = 1.0 / rate_hz
-
-        while time.time() < end_time:
-            self.goto_xyz_rpy(x, y, z, roll, pitch, yaw)
-            time.sleep(sleep_time)
 
 
 def main(args=None):
@@ -244,12 +199,6 @@ def main(args=None):
         import time
 
         time.sleep(2)
-
-        # Set home position
-        task_control.get_logger().info('Setting home position to current location...')
-        if not task_control.set_home_current():
-            task_control.get_logger().warn('Failed to set home position, continuing anyway...')
-        time.sleep(1)
 
         # Set to GUIDED mode
         task_control.get_logger().info('Setting mode to GUIDED...')
@@ -272,15 +221,14 @@ def main(args=None):
             task_control.land()
             return
         task_control.get_logger().info('Drone is taking off...')
-        time.sleep(10)  # Wait for takeoff to complete
+        time.sleep(15)  # Wait for takeoff to complete
 
         task_control.get_logger().info('Executing position sequence...')
         altitude = 2.0
         move_hold_time = 5.0
-        settle_hold_time = 3.0
         roll = 0.0
         pitch = 0.0
-        yaw = 0.0
+        yaw= 0.0
 
         waypoints = [
             ('front', 1.0, 0.0, altitude, move_hold_time),
@@ -296,7 +244,10 @@ def main(args=None):
             task_control.get_logger().info(
                 f'Moving {name}: x={x:.1f}, y={y:.1f}, z={z:.1f}'
             )
-            task_control.hold_xyz_rpy(x, y, z, roll, pitch, yaw, hold_time)
+            task_control.goto_xyz_rpy(x,y,z,0,0,0)
+            time.sleep(5)
+
+
 
         task_control.get_logger().info('Landing...')
         if not task_control.land():
