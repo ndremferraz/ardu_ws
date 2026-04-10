@@ -1,9 +1,27 @@
+#!/usr/bin/env python3
 import rclpy  # noqa: I100
 from geometry_msgs.msg import PoseStamped  # noqa: F401,I100
 from mavros_msgs.msg import State  # noqa: F401
 from mavros_msgs.srv import CommandBool, CommandHome, CommandTOL, SetMode
 from rclpy.node import Node
 
+def quaternion_from_euler(roll: float, pitch: float, yaw: float):
+    """
+    Convert Euler angles to quaternion.
+    """
+    cr = math.cos(roll * 0.5)
+    sr = math.sin(roll * 0.5)
+    cp = math.cos(pitch * 0.5)
+    sp = math.sin(pitch * 0.5)
+    cy = math.cos(yaw * 0.5)
+    sy = math.sin(yaw * 0.5)
+
+    qw = cr * cp * cy + sr * sp * sy
+    qx = sr * cp * cy - cr * sp * sy
+    qy = cr * sp * cy + sr * cp * sy
+    qz = cr * cp * sy - sr * sp * cy
+
+    return qx, qy, qz, qw
 
 class TaskControl(Node):
     """Control node."""
@@ -14,7 +32,7 @@ class TaskControl(Node):
         self.cmd_pos_pub = self.create_publisher( PoseStamped,
             "/mavros/setpoint_position/local",10)
 
-        self.pose_sub = self.create_subscriber(PoseStamped,"/mavros/local_position/pose", self.pose_callback, 10)
+        self.pose_sub = self.create_subscription(PoseStamped,"/mavros/local_position/pose", self.pose_callback, 10)
 
         # Service clients
         self.arming_client = self.create_client(CommandBool, '/mavros/cmd/arming')
@@ -162,18 +180,12 @@ class TaskControl(Node):
             return False
 
 
-    def goto(self, pose: Pose):
-        """
-        Publish a position setpoint. Vehicle should be in GUIDED mode.
-        """
-        pose_stamped = PoseStamped()
-        pose_stamped.header.stamp = self.get_clock().now().to_msg()
-        pose_stamped.header.frame_id = "map"
-        pose_stamped.pose = pose
-        self.cmd_pos_pub.publish(pose_stamped)
-
     def goto_xyz_rpy(self, x, y, z, roll, pitch, yaw):
-        pose = Pose()
+
+        pose = PoseStamped()
+        pose.header.stamp = self.get_clock().now().to_msg()
+        pose.header.frame_id = "map"
+
         pose.position.x = float(x)
         pose.position.y = float(y)
         pose.position.z = float(z)
@@ -184,8 +196,7 @@ class TaskControl(Node):
         pose.orientation.z = qz
         pose.orientation.w = qw
 
-        self.goto(pose)
-
+        self.cmd_pos_pub.publish(pose)
 
 
 def main(args=None):
@@ -224,20 +235,19 @@ def main(args=None):
         time.sleep(15)  # Wait for takeoff to complete
 
         task_control.get_logger().info('Executing position sequence...')
-        altitude = 2.0
-        move_hold_time = 5.0
+        altitude = 1.2
         roll = 0.0
         pitch = 0.0
         yaw= 0.0
 
         waypoints = [
-            ('front', 1.0, 0.0, altitude, move_hold_time),
-            ('origin', 0.0, 0.0, altitude, settle_hold_time),
-            ('back', -1.0, 0.0, altitude, move_hold_time),
-            ('origin', 0.0, 0.0, altitude, settle_hold_time),
-            ('left', 0.0, 1.0, altitude, move_hold_time),
-            ('origin', 0.0, 0.0, altitude, settle_hold_time),
-            ('right', 0.0, -1.0, altitude, move_hold_time),
+            ('front', 1.0, 0.0, altitude),
+            ('origin', 0.0, 0.0, altitude),
+            ('back', -1.0, 0.0, altitude),
+            ('origin', 0.0, 0.0, altitude),
+            ('left', 0.0, 1.0, altitude),
+            ('origin', 0.0, 0.0, altitude),
+            ('right', 0.0, -1.0, altitude),
         ]
 
         for name, x, y, z, hold_time in waypoints:
