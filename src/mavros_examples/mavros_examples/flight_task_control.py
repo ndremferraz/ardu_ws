@@ -4,6 +4,7 @@ from geometry_msgs.msg import PoseStamped  # noqa: F401,I100
 from mavros_msgs.msg import State  # noqa: F401
 from mavros_msgs.srv import CommandBool, CommandHome, CommandTOL, SetMode
 from rclpy.node import Node
+from rclpy.qos import QoSProfile, ReliabilityPolicy, HistoryPolicy
 
 def quaternion_from_euler(roll: float, pitch: float, yaw: float):
     """
@@ -29,10 +30,10 @@ class TaskControl(Node):
     def __init__(self):
         super().__init__('task_control')
 
-        self.cmd_pos_pub = self.create_publisher( PoseStamped,
-            "/mavros/setpoint_position/local",10)
+        pose_qos = QoSProfile( reliability=ReliabilityPolicy.BEST_EFFORT, history=HistoryPolicy.KEEP_LAST, depth=10)
 
-        self.pose_sub = self.create_subscription(PoseStamped,"/mavros/local_position/pose", self.pose_callback, 10)
+        self.cmd_pos_pub = self.create_publisher( PoseStamped,"/mavros/setpoint_position/local",10)
+        self.pose_sub = self.create_subscription(PoseStamped,"/mavros/local_position/pose", self.pose_callback, pose_qos)
 
         # Service clients
         self.arming_client = self.create_client(CommandBool, '/mavros/cmd/arming')
@@ -225,9 +226,9 @@ def main(args=None):
             return
         time.sleep(2)
 
-        # Takeoff to 2 meters
-        task_control.get_logger().info('Taking off to 2 meters...')
-        if not task_control.takeoff(2.0):
+        # Takeoff to 1.2 meters
+        task_control.get_logger().info('Taking off to 1.2 meters...')
+        if not task_control.takeoff(1.2):
             task_control.get_logger().error('Failed to send takeoff command. Landing...')
             task_control.land()
             return
