@@ -29,6 +29,18 @@ install(PROGRAMS
   RENAME flight_task_control2
 )
 
+install(PROGRAMS
+  ${PROJECT_NAME}/flight_task_control.py
+  DESTINATION lib/${PROJECT_NAME}
+  RENAME flight_task_control3
+)
+
+install(PROGRAMS
+  ${PROJECT_NAME}/flight_task_control.py
+  DESTINATION lib/${PROJECT_NAME}
+  RENAME flight_task_control4
+)
+
 
 install(DIRECTORY launch
   DESTINATION share/${PROJECT_NAME}

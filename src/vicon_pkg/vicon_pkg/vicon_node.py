@@ -37,8 +37,8 @@ class ViconPublisher(rclpy.node.Node):
         pose_msg.header.stamp = self.get_clock().now().to_msg()
         pose_msg.header.frame_id = 'vicon_frame'
 
-        pose_msg.pose.position.x = -x_v[1]
-        pose_msg.pose.position.y = x_v[0]
+        pose_msg.pose.position.x = x_v[0]
+        pose_msg.pose.position.y = x_v[1]
         pose_msg.pose.position.z = x_v[2]
         
         # Convert 3x3 rotation matrix to quaternion [x, y, z, w]
@@ -54,7 +54,7 @@ class ViconPublisher(rclpy.node.Node):
     def load_config(self, config_file="config.cfg"):
 
         """Read the Vicon object name from config.cfg."""
-        object_name = "OriginsX@192.168.10.1"  # Default fallback
+        object_name = "OriginsX@192.168.11.2"  # Default fallback
         try:
 
             with open(config_file, 'r') as file:

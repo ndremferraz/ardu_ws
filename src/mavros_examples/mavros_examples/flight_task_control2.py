@@ -226,9 +226,9 @@ def main(args=None):
             return
         time.sleep(2)
 
-        # Takeoff to 2 meters
-        task_control.get_logger().info('Taking off to 2 meters...')
-        if not task_control.takeoff(1.2):
+        # Takeoff to 1.5 meters
+        task_control.get_logger().info('Taking off to 1.5 meters...')
+        if not task_control.takeoff(1.5):
             task_control.get_logger().error('Failed to send takeoff command. Landing...')
             task_control.land()
             return

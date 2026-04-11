@@ -32,7 +32,7 @@ class TaskControl(Node):
 
         pose_qos = QoSProfile( reliability=ReliabilityPolicy.BEST_EFFORT, history=HistoryPolicy.KEEP_LAST, depth=10)
 
-        self.cmd_pos_pub = self.create_publisher( PoseStamped,"/mavros/setpoint_position/local",10)
+        self.cmd_pos_pub = self.create_publisher( PoseStamped,"/mavros/setpoint_position/local", pose_qos)
         self.pose_sub = self.create_subscription(PoseStamped,"/mavros/local_position/pose", self.pose_callback, pose_qos)
 
         # Service clients
@@ -226,9 +226,9 @@ def main(args=None):
             return
         time.sleep(2)
 
-        # Takeoff to 1.2 meters
-        task_control.get_logger().info('Taking off to 1.2 meters...')
-        if not task_control.takeoff(1.2):
+        # Takeoff to 1.5 meters
+        task_control.get_logger().info('Taking off to 1.5 meters...')
+        if not task_control.takeoff(1.5):
             task_control.get_logger().error('Failed to send takeoff command. Landing...')
             task_control.land()
             return
@@ -236,7 +236,7 @@ def main(args=None):
         time.sleep(15)  # Wait for takeoff to complete
 
         task_control.get_logger().info('Executing position sequence...')
-        altitude = 1.2
+        altitude = 1.5
         roll = 0.0
         pitch = 0.0
         yaw= 0.0
