@@ -6,6 +6,8 @@ from mavros_msgs.srv import CommandBool, CommandHome, CommandTOL, SetMode
 from rclpy.node import Node
 from rclpy.qos import QoSProfile, ReliabilityPolicy, HistoryPolicy
 
+import math
+
 def quaternion_from_euler(roll: float, pitch: float, yaw: float):
     """
     Convert Euler angles to quaternion.
