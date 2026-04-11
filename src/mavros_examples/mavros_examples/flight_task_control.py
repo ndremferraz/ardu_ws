@@ -194,10 +194,10 @@ class TaskControl(Node):
         pose.pose.position.z = float(z)
 
         qx, qy, qz, qw = quaternion_from_euler(roll, pitch, yaw)
-        pose.orientation.x = qx
-        pose.orientation.y = qy
-        pose.orientation.z = qz
-        pose.orientation.w = qw
+        pose.pose.orientation.x = qx
+        pose.pose.orientation.y = qy
+        pose.pose.orientation.z = qz
+        pose.pose.orientation.w = qw
 
         self.cmd_pos_pub.publish(pose)
 
