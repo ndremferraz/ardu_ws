@@ -187,9 +187,9 @@ class TaskControl(Node):
         pose.header.stamp = self.get_clock().now().to_msg()
         pose.header.frame_id = "map"
 
-        pose.position.x = float(x)
-        pose.position.y = float(y)
-        pose.position.z = float(z)
+        pose.pose.position.x = float(x)
+        pose.pose.position.y = float(y)
+        pose.pose.position.z = float(z)
 
         qx, qy, qz, qw = quaternion_from_euler(roll, pitch, yaw)
         pose.orientation.x = qx
