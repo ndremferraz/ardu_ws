@@ -251,7 +251,7 @@ def main(args=None):
             ('right', 0.0, -1.0, altitude),
         ]
 
-        for name, x, y, z, hold_time in waypoints:
+        for name, x, y, z in waypoints:
             task_control.get_logger().info(
                 f'Moving {name}: x={x:.1f}, y={y:.1f}, z={z:.1f}'
             )
