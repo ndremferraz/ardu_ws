@@ -29,6 +29,12 @@ install(PROGRAMS
   RENAME takeoff_and_wait
 )
 
+install(PROGRAMS
+  ${PROJECT_NAME}/send_cmd_vel.py
+  DESTINATION lib/${PROJECT_NAME}
+  RENAME send_cmd_vel
+)
+
 
 install(DIRECTORY launch
   DESTINATION share/${PROJECT_NAME}
