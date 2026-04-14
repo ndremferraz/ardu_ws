@@ -17,28 +17,16 @@ ament_python_install_package(${PROJECT_NAME})
 
 # Add Python node task_control
 install(PROGRAMS
-  ${PROJECT_NAME}/flight_task_control.py
+  ${PROJECT_NAME}/hover_test.py
   DESTINATION lib/${PROJECT_NAME}
-  RENAME flight_task_control
+  RENAME hover_test
 )
 
 # Add Python node task_control
 install(PROGRAMS
-  ${PROJECT_NAME}/flight_task_control2.py
+  ${PROJECT_NAME}/takeoff_and_wait.py
   DESTINATION lib/${PROJECT_NAME}
-  RENAME flight_task_control2
-)
-
-install(PROGRAMS
-  ${PROJECT_NAME}/flight_task_control.py
-  DESTINATION lib/${PROJECT_NAME}
-  RENAME flight_task_control3
-)
-
-install(PROGRAMS
-  ${PROJECT_NAME}/flight_task_control.py
-  DESTINATION lib/${PROJECT_NAME}
-  RENAME flight_task_control4
+  RENAME takeoff_and_wait
 )
 
 
