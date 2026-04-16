@@ -22,7 +22,10 @@ setup(
     license='Apache-2.0',
     entry_points={
         'console_scripts': [
-            'flight_tasks_control = mavros_examples.flight_task_control:main',
+            'send_cmd_vel = mavros_examples.send_cmd_vel:main',
+            'hover_test = mavros_examples.hover_test:main',
+            'takeoff_and_wait = mavros_examples.takeoff_and_wait:main',
+            'flight_test = mavros_examples.flight_test',
             
         ],
     },

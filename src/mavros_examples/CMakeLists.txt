@@ -35,6 +35,12 @@ install(PROGRAMS
   RENAME send_cmd_vel
 )
 
+install(PROGRAMS
+  ${PROJECT_NAME}/flight_test.py
+  DESTINATION lib/${PROJECT_NAME}
+  RENAME flight_test
+)
+
 
 install(DIRECTORY launch
   DESTINATION share/${PROJECT_NAME}
