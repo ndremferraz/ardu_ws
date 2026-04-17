@@ -202,8 +202,8 @@ class TaskControl(Node):
 
             
             self.send_cmd_vel(cmd_vel)
-            delta_posi = xyz - self.current_posi
             self.ros_sleep(period) 
+            delta_posi = xyz - self.current_posi
         
         self.send_cmd_vel(np.zeros(3, dtype=float))
 
