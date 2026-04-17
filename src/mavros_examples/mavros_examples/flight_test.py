@@ -17,15 +17,23 @@ class TaskControl(Node):
     def __init__(self):
         super().__init__('task_control')
 
-        self.declare_parameter('max_speed', 0.5)
-        self.max_speed = self.get_parameter('max_speed').value
+        self.declare_parameter('velocity', 0.5)
+        self.velocity = self.get_parameter('velocity').value
+
+        self.declare_parameter('command_freq', 15)
+        self.command_freq = self.get_parameter('command_freq').value
+
+        self.declare_parameter('tolerance', 0.10)
+        self.tolerance = self.get_parameter('tolerance').value
+
+        self.current_posi = None
+        self.initial_posi = None  
 
         qos = QoSProfile(
             reliability=ReliabilityPolicy.BEST_EFFORT,
             history=HistoryPolicy.KEEP_LAST,
             depth=10
         )
-
 
         self.cmd_pos_pub = self.create_publisher(
             TwistStamped, "/mavros/setpoint_velocity/cmd_vel", qos)
@@ -36,13 +44,7 @@ class TaskControl(Node):
         self.arming_client = self.create_client(CommandBool, '/mavros/cmd/arming')
         self.set_mode_client = self.create_client(SetMode, '/mavros/set_mode')
         self.takeoff_client = self.create_client(CommandTOL, '/mavros/cmd/takeoff')
-        self.land_client = self.create_client(CommandTOL, '/mavros/cmd/land')
-
-        self.current_posi = None
-        self.initial_posi = None
-        self.current_vel = np.array([0.0,0.0,0.0],dtype=float)
-
-        self.controller = WaypointController(max_speed=self.max_speed)        
+        self.land_client = self.create_client(CommandTOL, '/mavros/cmd/land')   
 
         self.get_logger().info('Waiting for MAVROS services...')
         for client in [
@@ -176,27 +178,35 @@ class TaskControl(Node):
             return False
 
 
-    def goto_xyz(self, xyz, period_sec=0.075):
+    def goto_xyz(self, xyz):
         '''
-        Moves to xyz coordinates by using PID to control velocity
+        Moves to xyz coordinates
         '''
-
-
-        t0 = self.get_clock().now()
-
         xyz = xyz + self.initial_posi
-        reached = False
+        delta_posi = xyz - self.current_posi
 
-        while rclpu.ok() and not reached:
-            dt = (self.get_clock().now() - t0).nanoseconds * 1e-9
+        cmd_vel = np.zeros(3, dtype=float)
+        period = 1 / self.command_freq
 
-            if self.current_posi is not None:
-                reached, cmd_vel = self.controller.update(self.current_posi, self.current_vel, xyz, dt)
-                self.send_cmd_vel(cmd_vel)
-                self.current_vel = cmd_vel.copy()
+        while np.linalg.norm(delta_posi) > self.tolerance:
 
-            t0 = self.get_clock().now()
-            self.ros_sleep(period_sec)
+            '''This is the weird way that I found to make sure the individual speeds update
+               Dont pass an individual limit that is'''
+            for i in range(3):
+
+                if abs(delta_posi[i]) > self.tolerance / np.sqrt(3):
+
+                    cmd_vel[i] = self.velocity if delta_posi[i] > 0 else -self.velocity
+                else:
+                    cmd_vel[i] = 0
+
+            
+            self.send_cmd_vel(cmd_vel)
+            delta_posi = xyz - self.current_posi
+            self.ros_sleep(period) 
+        
+        self.send_cmd_vel(np.zeros(3, dtype=float))
+
 
     def send_cmd_vel(self, cmd_vel):
         '''
@@ -213,7 +223,6 @@ class TaskControl(Node):
         vel_msg.twist.angular.z = 0.0
 
         self.cmd_pos_pub.publish(vel_msg)
-
 
     def ros_sleep(self, duration_sec):
 
@@ -233,7 +242,6 @@ class TaskControl(Node):
 
         return True
 
-
 def main(args=None):
     rclpy.init(args=args)
 
@@ -242,28 +250,24 @@ def main(args=None):
 
         task_control.get_logger().info('=== Example 1: Basic Flight Sequence ===')
 
-        task_control.ros_sleep(2.0)
-
-
         task_control.get_logger().info('Waiting for initial Vicon position...')
         if not task_control.wait_for_initial_position(timeout_sec=5.0):
             task_control.get_logger().error('Did not receive initial position. Exiting without takeoff.')
             return
-        
 
         # Set to GUIDED mode
         task_control.get_logger().info('Setting mode to GUIDED...')
         if not task_control.set_mode('GUIDED'):
             task_control.get_logger().error('Failed to set GUIDED mode. Exiting...')
             return
-        task_control.ros_sleep(2.0)
+        task_control.ros_sleep(1.0)
 
         # Arm the vehicle
         task_control.get_logger().info('Arming the vehicle...')
         if not task_control.arm():
             task_control.get_logger().error('Failed to arm vehicle. Exiting...')
             return
-        task_control.ros_sleep(2.0)
+        task_control.ros_sleep(1.0)
 
         # Takeoff to 1.5 meters
         task_control.get_logger().info('Taking off to 1.5 meters...')
@@ -275,24 +279,26 @@ def main(args=None):
         task_control.ros_sleep(5.0)  # Wait for takeoff to complete
 
         '''
-        This creates a parametrized Figure 8 waypoint
+        This iterates through the waypoints
         '''
-        t = np.linspace(0, 2*np.pi, 15)
-        x = np.sin(t) * 2
+        t = np.linspace(0, 2*np.pi, 13)
+        x = np.sin(t)
         y = np.sin(2*t)
 
         waypoints_xy = np.vstack((x, y)).T
         z = np.full((waypoints_xy.shape[0], 1), 1.5)
         waypoints = np.concatenate((waypoints_xy, z), axis=1)
 
-        '''
-        This iterates through the waypoints
-        '''
+
         for point in waypoints:
             task_control.get_logger().info(f'moving to point: {point}')
             task_control.goto_xyz(point)
-
-        task_control.get_logger().info('=== Example 1 Complete ===')
+        
+        task_control.get_logger().info('Landing...')
+        if not task_control.land():
+            task_control.get_logger().error('Failed to send land, land manually')
+            return
+        
 
     except KeyboardInterrupt:
         task_control.get_logger().info('Flight interrupted by user')
