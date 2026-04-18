@@ -19,9 +19,9 @@ class VelPub(Node):
         msg = TwistStamped()
         msg.header.stamp = self.get_clock().now().to_msg()
         msg.header.frame_id = 'map'
-        msg.twist.linear.x = 0.2
+        msg.twist.linear.x = 0.0
         msg.twist.linear.y = 0.0
-        msg.twist.linear.z = 0.0
+        msg.twist.linear.z = -0.3
         msg.twist.angular.z = 0.0
         self.pub.publish(msg)
 

@@ -7,8 +7,6 @@ from mavros_msgs.srv import CommandBool, CommandHome, CommandTOL, SetMode
 from rclpy.node import Node
 from rclpy.qos import QoSProfile, ReliabilityPolicy, HistoryPolicy
 
-from mavros.vel_pid import WaypointController
-
 import math
 import time
 

@@ -187,12 +187,6 @@ def main(args=None):
 
         time.sleep(2)
 
-        # Set home position
-        task_control.get_logger().info('Setting home position to current location...')
-        if not task_control.set_home_current():
-            task_control.get_logger().warn('Failed to set home position, continuing anyway...')
-        time.sleep(1)
-
         # Set to GUIDED mode
         task_control.get_logger().info('Setting mode to GUIDED...')
         if not task_control.set_mode('GUIDED'):
