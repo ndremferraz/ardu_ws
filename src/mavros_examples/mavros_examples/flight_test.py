@@ -1,43 +1,29 @@
 #!/usr/bin/env python3
 import rclpy  # noqa: I100
-import numpy as np
 from geometry_msgs.msg import PoseStamped,TwistStamped  # noqa: F401,I100
 from mavros_msgs.msg import State  # noqa: F401
-from mavros_msgs.srv import CommandBool, CommandHome, CommandTOL, SetMode
+from mavros_msgs.srv import CommandBool, CommandTOL, SetMode
 from rclpy.node import Node
-from rclpy.qos import QoSProfile, ReliabilityPolicy, HistoryPolicy
 
-import math
 import time
+import math
 
 
 class TaskControl(Node):
     def __init__(self):
         super().__init__('task_control')
 
-        self.declare_parameter('velocity', 0.5)
-        self.velocity = self.get_parameter('velocity').value
+        self.initial_pose = None
+        self.current_vel = None  
 
-        self.declare_parameter('command_freq', 15)
-        self.command_freq = self.get_parameter('command_freq').value
-
-        self.declare_parameter('tolerance', 0.10)
-        self.tolerance = self.get_parameter('tolerance').value
-
-        self.current_posi = None
-        self.initial_posi = None  
-
-        qos = QoSProfile(
-            reliability=ReliabilityPolicy.BEST_EFFORT,
-            history=HistoryPolicy.KEEP_LAST,
-            depth=10
-        )
-
-        self.cmd_pos_pub = self.create_publisher(
-            TwistStamped, "/mavros/setpoint_velocity/cmd_vel", qos)
+        self.vel_sub = self.create_subscription(
+            TwistStamped, "/mavros/setpoint_velocity/cmd_vel", self.vel_callback, 5)
 
         self.pose_sub = self.create_subscription(
             PoseStamped, "/vicon/pose", self.pose_callback, 5)
+
+        self.goal_pose_pub = self.create_publisher(
+            PoseStamped, '/goal_pose', 5)
 
         self.arming_client = self.create_client(CommandBool, '/mavros/cmd/arming')
         self.set_mode_client = self.create_client(SetMode, '/mavros/set_mode')
@@ -57,12 +43,12 @@ class TaskControl(Node):
 
     def pose_callback(self, pose_msg):
 
-        posi = np.array([pose_msg.pose.position.x, pose_msg.pose.position.y, pose_msg.pose.position.z], dtype=float)
-        
-        self.current_posi = posi
+        if self.initial_pose is None:
+            self.initial_pose = pose_msg
 
-        if self.initial_posi is None:
-            self.initial_posi = posi
+    def vel_callback(self, vel_msg):
+
+        self.current_vel = vel_msg
 
     def arm(self) -> bool:
         """Arm the quadcopter."""
@@ -175,53 +161,6 @@ class TaskControl(Node):
             self.get_logger().error('Set mode service call failed')
             return False
 
-
-    def goto_xyz(self, xyz):
-        '''
-        Moves to xyz coordinates
-        '''
-        xyz = xyz + self.initial_posi
-        delta_posi = xyz - self.current_posi
-
-        cmd_vel = np.zeros(3, dtype=float)
-        period = 1 / self.command_freq
-
-        while np.linalg.norm(delta_posi) > self.tolerance:
-
-            '''This is the weird way that I found to make sure the individual speeds update
-               Dont pass an individual limit that is'''
-            for i in range(3):
-
-                if abs(delta_posi[i]) > self.tolerance / np.sqrt(3):
-
-                    cmd_vel[i] = self.velocity if delta_posi[i] > 0 else -self.velocity
-                else:
-                    cmd_vel[i] = 0
-
-            
-            self.send_cmd_vel(cmd_vel)
-            self.ros_sleep(period) 
-            delta_posi = xyz - self.current_posi
-        
-        self.send_cmd_vel(np.zeros(3, dtype=float))
-
-
-    def send_cmd_vel(self, cmd_vel):
-        '''
-        Sends command velocity using command velocity topic
-        '''
-
-        vel_msg = TwistStamped()
-        vel_msg.header.stamp = self.get_clock().now().to_msg()
-        vel_msg.header.frame_id = 'map'
-
-        vel_msg.twist.linear.x = cmd_vel[0]
-        vel_msg.twist.linear.y = cmd_vel[1]
-        vel_msg.twist.linear.z = cmd_vel[2]
-        vel_msg.twist.angular.z = 0.0
-
-        self.cmd_pos_pub.publish(vel_msg)
-
     def ros_sleep(self, duration_sec):
 
         end = time.monotonic() + duration_sec
@@ -229,16 +168,48 @@ class TaskControl(Node):
         while rclpy.ok() and time.monotonic() < end:
             rclpy.spin_once(self, timeout_sec=0.05)
 
-    def wait_for_initial_position(self, timeout_sec=5.0):
+    def wait_for_initial_pose(self, timeout_sec=5.0):
         start = time.monotonic()
 
-        while rclpy.ok() and self.initial_posi is None:
+        while rclpy.ok() and self.initial_pose is None:
             rclpy.spin_once(self, timeout_sec=0.1)
 
             if time.monotonic() - start > timeout_sec:
                 return False
 
         return True
+
+    def goto_pose(self, x, y, z, yaw):
+
+        goal = PoseStamped()
+        goal.header.stamp = self.get_clock().now().to_msg()
+
+        goal.pose.position.x = x + self.initial_pose.pose.position.x
+        goal.pose.position.y = y + self.initial_pose.pose.position.y
+        goal.pose.position.z = z + self.initial_pose.pose.position.z
+        
+        goal.pose.orientation.z = yaw + initial_pose.pose.orientation.z
+
+        self.goal_pose_pub.publish(goal)
+
+        while rclpy.ok() and not self.stopped():
+
+            rclpy.spin_once(self, timeout_sec=0.1)
+    
+def stopped(self):
+    
+    if self.current_vel is None:
+        return False
+
+    tol = 1e-6
+
+    return (
+        math.isclose(self.current_vel.twist.linear.x, 0.0, abs_tol=tol)
+        and math.isclose(self.current_vel.twist.linear.y, 0.0, abs_tol=tol)
+        and math.isclose(self.current_vel.twist.linear.z, 0.0, abs_tol=tol)
+        and math.isclose(self.current_vel.twist.angular.z, 0.0, abs_tol=tol)
+    )
+
 
 def main(args=None):
     rclpy.init(args=args)
@@ -248,9 +219,9 @@ def main(args=None):
 
         task_control.get_logger().info('=== Example 1: Basic Flight Sequence ===')
 
-        task_control.get_logger().info('Waiting for initial Vicon position...')
-        if not task_control.wait_for_initial_position(timeout_sec=5.0):
-            task_control.get_logger().error('Did not receive initial position. Exiting without takeoff.')
+        task_control.get_logger().info('Waiting for initial Vicon pose')
+        if not task_control.wait_for_initial_pose(timeout_sec=5.0):
+            task_control.get_logger().error('Did not receive initial pose. Exiting without takeoff.')
             return
 
         # Set to GUIDED mode
@@ -274,23 +245,15 @@ def main(args=None):
             task_control.land()
             return
         task_control.get_logger().info('Drone is taking off...')
-        task_control.ros_sleep(5.0)  # Wait for takeoff to complete
+        task_control.ros_sleep(3.0)  # Wait for takeoff to complete
 
         '''
         This iterates through the waypoints
+        @Nathan just create points and go to them in the desired search pattern 
         '''
-        t = np.linspace(0, 2*np.pi, 13)
-        x = np.sin(t)
-        y = np.sin(2*t)
-
-        waypoints_xy = np.vstack((x, y)).T
-        z = np.full((waypoints_xy.shape[0], 1), 1.5)
-        waypoints = np.concatenate((waypoints_xy, z), axis=1)
 
 
-        for point in waypoints:
-            task_control.get_logger().info(f'moving to point: {point}')
-            task_control.goto_xyz(point)
+
         
         task_control.get_logger().info('Landing...')
         if not task_control.land():
@@ -312,6 +275,5 @@ if __name__ == '__main__':
 
 
         
-
 
 
