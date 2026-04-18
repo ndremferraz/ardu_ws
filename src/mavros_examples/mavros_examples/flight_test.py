@@ -195,6 +195,43 @@ class TaskControl(Node):
         while rclpy.ok() and not self.stopped():
 
             rclpy.spin_once(self, timeout_sec=0.1)
+
+    # This function checks if the current pose matches the value given
+    # def is_at_pose(self, x, y, z, tol=0.2):
+    #         dx = self.current_pose.position.x - x
+    #         dy = self.current_pose.position.y - y
+    #         dz = self.current_pose.position.z - z
+
+    #         return (dx*dx + dy*dy + dz*dz) ** 0.5 < tol
+    # This function generates waypoints in a figure 8 pattern, waypoint number can be changed to be much more accurate pattern
+    def generate_parallel_waypoints(self, start_x, start_y, height,
+                                 width=4.0, height_y=4.0, step=1.0):
+            """
+            width: total distance in X direction
+            height_y: total distance in Y direction
+            step: spacing between each sweep line
+            """
+            waypoints = []
+
+            num_lines = int(height_y / step)
+            direction = 1  # 1 = forward, -1 = backward
+
+            # For loop to execute parallel line search
+            for i in range(num_lines + 1):
+                y = start_y + i * step
+
+                if direction == 1:
+                    # left → right
+                    waypoints.append((start_x, y, height))
+                    waypoints.append((start_x + width, y, height))
+                else:
+                    # right → left
+                    waypoints.append((start_x + width, y, height))
+                    waypoints.append((start_x, y, height))
+
+                direction *= -1  # flip direction each row
+
+            return waypoints
     
 def stopped(self):
     
@@ -251,7 +288,26 @@ def main(args=None):
         This iterates through the waypoints
         @Nathan just create points and go to them in the desired search pattern 
         '''
+        # Get current x and y pose
+        start_x = task_control.current_pose.position.x
+        start_y = task_control.current_pose.position.y
 
+        # Generate waypoints and assign to variable
+        waypoints = task_control.generate_parallel_waypoints(
+            start_x,
+            start_y,
+            height=1.5,
+            width=4.0,     # Size of search area (X), change to ROS parameter and hardcode to starting position on comp day
+            height_y=4.0,  # Size of search area (Y), change to ROS parameter and hardcode to starting position on comp day
+            step=1.0       # Spacing between passes
+        )
+
+        for (x, y, z) in waypoints:
+            # Trigger go to pose function for every waypoint
+            task_control.goto_pose(x,y,1.5,0) # No idea what to input for yaw?
+
+            # while not task_control.is_at_position(x, y, z):
+            #     rclpy.spin_once(task_control, timeout_sec=0.1)
 
 
         
