@@ -76,7 +76,7 @@ private:
   {
     geometry_msgs::msg::PoseStamped pose_msg;
     pose_msg.header = msg->header;
-    pose_msg.pose = msg->pose.pose;
+    pose_msg.pose = msg->pose;
 
     vins_history_.push_back(pose_msg);
 
@@ -104,7 +104,7 @@ private:
   std::vector<geometry_msgs::msg::PoseStamped> vicon_history_;
 
   rclcpp::Publisher<geometry_msgs::msg::PoseStamped>::SharedPtr publisher_;
-  rclcpp::Subscription<geometry_msgs::msg::PoseWithCovarianceStamped>::SharedPtr subscription_;
+  rclcpp::Subscription<geometry_msgs::msg::PoseStamped>::SharedPtr subscription_;
   rclcpp::Subscription<geometry_msgs::msg::PoseStamped>::SharedPtr vicon_subscription_;
   rclcpp::TimerBase::SharedPtr stats_timer_;
 };
