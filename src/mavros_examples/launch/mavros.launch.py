@@ -25,7 +25,7 @@ def generate_launch_description():
     return LaunchDescription([
         DeclareLaunchArgument(
             'pose_source',
-            default_value='vicon',
+            default_value='vins',
             description='Pose source for vins_mav_node: vins or vicon',
         ),
         Node(

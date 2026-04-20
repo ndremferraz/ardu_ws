@@ -12,7 +12,7 @@ public:
         tf_broadcaster_ = std::make_shared<tf2_ros::TransformBroadcaster>(this);
 
         pose_sub_ = this->create_subscription<geometry_msgs::msg::PoseStamped>(
-            "/vicon/pose",
+            "/mavros/vision_pose/pose",
             10,
             std::bind(&PoseToOdom::poseCallback, this, std::placeholders::_1)
         );
