@@ -26,11 +26,18 @@ class GoalToCmdVel(Node):
         self.current_pose = None
         self.goal_pose = None
 
-        self.goal_active = False  # NEW: state flag
+        self.goal_active = False
+        self.stop_sent = False
 
+        #Parameters
         self.k_lin = 0.4
-        self.goal_tolerance = 0.25
+        self.lin_goal_tolerance = 0.25
         self.max_lin = 0.4
+
+        # separate vertical gain
+        self.ver_goal_tolerance = 0.1
+        self.k_z = 0.2         
+        self.max_z = 0.1
 
         self.timer = self.create_timer(0.1, self.control_loop)
 
@@ -40,6 +47,7 @@ class GoalToCmdVel(Node):
     def goal_callback(self, msg):
         self.goal_pose = msg.pose
         self.goal_active = True  # NEW goal received → activate control
+        self.stop_sent = False # Allow movement again
 
     def publish_stop(self):
         cmd = TwistStamped()
@@ -55,22 +63,25 @@ class GoalToCmdVel(Node):
     def control_loop(self):
         # No goal or no odom → just hold
         if self.current_pose is None or self.goal_pose is None:
-            self.publish_stop()
             return
 
         if not self.goal_active:
-            self.publish_stop()
+            #self.publish_stop() need to add back if stopping after reaching goal
             return
 
         dx = self.goal_pose.position.x - self.current_pose.position.x
         dy = self.goal_pose.position.y - self.current_pose.position.y
+        dz = self.goal_pose.position.z - self.current_pose.position.z
 
-        distance = math.sqrt(dx * dx + dy * dy)
+        lin_distance = math.sqrt(dx * dx + dy * dy)
 
         # Stop condition (but DO NOT exit system)
-        if distance < self.goal_tolerance:
-            self.publish_stop()
-            self.goal_active = False  # enter idle mode
+        # Goal reached → send stop ONCE
+        if lin_distance < self.lin_goal_tolerance and abs(dz) < self.ver_goal_tolerance:
+            if not self.stop_sent:
+                self.publish_stop()
+                self.stop_sent = True
+            self.goal_active = False
             return
 
         cmd = TwistStamped()
@@ -78,12 +89,13 @@ class GoalToCmdVel(Node):
 
         vx = self.k_lin * dx
         vy = self.k_lin * dy
+        vz = self.k_z * dz
 
         cmd.twist.linear.x = max(-self.max_lin, min(self.max_lin, vx))
         cmd.twist.linear.y = max(-self.max_lin, min(self.max_lin, vy))
-        cmd.twist.linear.z = 0.0
+        cmd.twist.linear.z = max(-self.max_z, min(self.max_z, vz))
 
-        # NO yaw control
+        # NO yaw movement
         cmd.twist.angular.z = 0.0
 
         self.cmd_pub.publish(cmd)
