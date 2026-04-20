@@ -22,8 +22,8 @@ public:
         "/mavros/vision_pose/pose", 10);
     // Regular VINS
     subscription_ =
-        this->create_subscription<geometry_msgs::msg::PoseWithCovarianceStamped>(
-            "/ov_srvins/poseimu", 10, std::bind(&PoseForwardNode::vins_callback, this, _1));
+        this->create_subscription<geometry_msgs::msg::PoseStamped>(
+            "/zed/pose", 10, std::bind(&PoseForwardNode::vins_callback, this, _1));
     // Vicon subscription
     vicon_subscription_ =
         this->create_subscription<geometry_msgs::msg::PoseStamped>(
@@ -72,7 +72,7 @@ public:
   }
 
 private:
-  void vins_callback(const geometry_msgs::msg::PoseWithCovarianceStamped::SharedPtr msg) 
+  void vins_callback(const geometry_msgs::msg::PoseStamped::SharedPtr msg) 
   {
     geometry_msgs::msg::PoseStamped pose_msg;
     pose_msg.header = msg->header;
