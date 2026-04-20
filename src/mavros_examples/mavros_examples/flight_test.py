@@ -297,8 +297,8 @@ def main(args=None):
             start_x,
             start_y,
             height=1.5,
-            width=4.0,     # Size of search area (X), change to ROS parameter and hardcode to starting position on comp day
-            height_y=4.0,  # Size of search area (Y), change to ROS parameter and hardcode to starting position on comp day
+            width=2.0,     # Size of search area (X), change to ROS parameter and hardcode to starting position on comp day
+            height_y=2.0,  # Size of search area (Y), change to ROS parameter and hardcode to starting position on comp day
             step=1.0       # Spacing between passes
         )
 
