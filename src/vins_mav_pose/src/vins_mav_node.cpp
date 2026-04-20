@@ -34,24 +34,40 @@ public:
 
   ~PoseForwardNode(){
 
-    // Save VINS history to file
-      std::ofstream vicon_vs_vins_file("vins_history.txt");
+    std::ofstream vicon_vs_vins_file("vins_history.csv");
 
-      vicon_vs_vins_file << "VINS History:\n";
-      for (const auto& pose : vins_history_) {
-        vicon_vs_vins_file << "Time(sec):" <<pose.header.stamp.sec << "." << pose.header.stamp.nanosec << "XYZ: "
-                << pose.pose.position.x << " " << pose.pose.position.y << " " << pose.pose.position.z << "Pose():"
-                << pose.pose.orientation.x << " " << pose.pose.orientation.y << " "
-                << pose.pose.orientation.z << " " << pose.pose.orientation.w << "\n";
-      }
-      vicon_vs_vins_file << "Vicon History:\n";
-      for (const auto& pose : vicon_history_) {
-        vicon_vs_vins_file << "Time(sec):" << pose.header.stamp.sec << "." << pose.header.stamp.nanosec << "XYZ: "
-                  << pose.pose.position.x << " " << pose.pose.position.y << " " << pose.pose.position.z << "Pose():"
-                  << pose.pose.orientation.x << " " << pose.pose.orientation.y << " "
-                  << pose.pose.orientation.z << " " << pose.pose.orientation.w << "\n";
-      }
-      vicon_vs_vins_file.close();
+    vicon_vs_vins_file
+      << "source,stamp_sec,stamp_nanosec,x,y,z,qx,qy,qz,qw\n";
+
+    for (const auto& pose : vins_history_) {
+      vicon_vs_vins_file
+        << "vins,"
+        << pose.header.stamp.sec << ","
+        << pose.header.stamp.nanosec << ","
+        << pose.pose.position.x << ","
+        << pose.pose.position.y << ","
+        << pose.pose.position.z << ","
+        << pose.pose.orientation.x << ","
+        << pose.pose.orientation.y << ","
+        << pose.pose.orientation.z << ","
+        << pose.pose.orientation.w << "\n";
+    }
+
+    for (const auto& pose : vicon_history_) {
+      vicon_vs_vins_file
+        << "vicon,"
+        << pose.header.stamp.sec << ","
+        << pose.header.stamp.nanosec << ","
+        << pose.pose.position.x << ","
+        << pose.pose.position.y << ","
+        << pose.pose.position.z << ","
+        << pose.pose.orientation.x << ","
+        << pose.pose.orientation.y << ","
+        << pose.pose.orientation.z << ","
+        << pose.pose.orientation.w << "\n";
+    }
+
+    vicon_vs_vins_file.close();
 
   }
 
