@@ -23,7 +23,7 @@ public:
     // Regular VINS
     subscription_ =
         this->create_subscription<geometry_msgs::msg::PoseStamped>(
-            "/zed/pose", 10, std::bind(&PoseForwardNode::vins_callback, this, _1));
+            "/zed/zed_node/pose", 10, std::bind(&PoseForwardNode::vins_callback, this, _1));
     // Vicon subscription
     vicon_subscription_ =
         this->create_subscription<geometry_msgs::msg::PoseStamped>(
