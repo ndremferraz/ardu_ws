@@ -56,4 +56,16 @@ def generate_launch_description():
                 }
             ]
         ),
+        Node(
+            package='goal_to_cmd_vel',
+            executable='controller_node',
+            namespace='controller_node',
+            output='screen',
+        ),
+        Node(
+            package='pose_to_odom',
+            executable='pose_to_odom_node',
+            namespace='pose_to_odom_node',
+            output='screen',
+        ),
     ])
