@@ -4,6 +4,7 @@ from geometry_msgs.msg import PoseStamped,TwistStamped  # noqa: F401,I100
 from mavros_msgs.msg import State  # noqa: F401
 from mavros_msgs.srv import CommandBool, CommandTOL, SetMode
 from rclpy.node import Node
+from std_msgs.msg import Bool
 
 import time
 import math
@@ -14,13 +15,14 @@ class TaskControl(Node):
         super().__init__('task_control')
 
         self.initial_pose = None
-        self.current_vel = None  
+        self.current_pose = None
+        self.goal_reached = False
 
-        self.vel_sub = self.create_subscription(
-            TwistStamped, "/mavros/setpoint_velocity/cmd_vel", self.vel_callback, 5)
+        self.goal_reached_sub = self.create_subscription(
+            Bool, "/goal_reached", self.goal_callback, 10)
 
         self.pose_sub = self.create_subscription(
-            PoseStamped, "/vicon/pose", self.pose_callback, 5)
+            PoseStamped, "/mavros/vision_pose/pose", self.pose_callback, 5)
 
         self.goal_pose_pub = self.create_publisher(
             PoseStamped, '/goal_pose', 5)
@@ -43,12 +45,16 @@ class TaskControl(Node):
 
     def pose_callback(self, pose_msg):
 
+        self.current_pose = pose_msg
+
         if self.initial_pose is None:
             self.initial_pose = pose_msg
 
-    def vel_callback(self, vel_msg):
+    def goal_callback(self, goal_msg):
 
-        self.current_vel = vel_msg
+        self.get_logger().info(f'Goal Reached message received: {goal_msg}')
+
+        self.goal_reached = goal_msg.data
 
     def arm(self) -> bool:
         """Arm the quadcopter."""
@@ -188,11 +194,12 @@ class TaskControl(Node):
         goal.pose.position.y = y + self.initial_pose.pose.position.y
         goal.pose.position.z = z + self.initial_pose.pose.position.z
         
-        goal.pose.orientation.z = yaw + initial_pose.pose.orientation.z
+        goal.pose.orientation.z = yaw + self.initial_pose.pose.orientation.z
+        self.goal_reached = False
 
         self.goal_pose_pub.publish(goal)
 
-        while rclpy.ok() and not self.stopped():
+        while rclpy.ok() and not self.goal_reached:
 
             rclpy.spin_once(self, timeout_sec=0.1)
 
@@ -232,20 +239,6 @@ class TaskControl(Node):
                 direction *= -1  # flip direction each row
 
             return waypoints
-    
-def stopped(self):
-    
-    if self.current_vel is None:
-        return False
-
-    tol = 1e-6
-
-    return (
-        math.isclose(self.current_vel.twist.linear.x, 0.0, abs_tol=tol)
-        and math.isclose(self.current_vel.twist.linear.y, 0.0, abs_tol=tol)
-        and math.isclose(self.current_vel.twist.linear.z, 0.0, abs_tol=tol)
-        and math.isclose(self.current_vel.twist.angular.z, 0.0, abs_tol=tol)
-    )
 
 
 def main(args=None):
@@ -282,29 +275,40 @@ def main(args=None):
             task_control.land()
             return
         task_control.get_logger().info('Drone is taking off...')
-        task_control.ros_sleep(3.0)  # Wait for takeoff to complete
+        task_control.ros_sleep(5.0)  # Wait for takeoff to complete
 
         '''
         This iterates through the waypoints
         @Nathan just create points and go to them in the desired search pattern 
         '''
         # Get current x and y pose
-        start_x = task_control.current_pose.position.x
-        start_y = task_control.current_pose.position.y
+        #start_x = task_control.current_pose.pose.position.x
+        #start_y = task_control.current_pose.pose.position.y
 
         # Generate waypoints and assign to variable
-        waypoints = task_control.generate_parallel_waypoints(
+        '''waypoints = task_control.generate_parallel_waypoints(
             start_x,
             start_y,
             height=1.5,
             width=2.0,     # Size of search area (X), change to ROS parameter and hardcode to starting position on comp day
             height_y=2.0,  # Size of search area (Y), change to ROS parameter and hardcode to starting position on comp day
             step=1.0       # Spacing between passes
-        )
+        )'''
 
-        for (x, y, z) in waypoints:
+        new_waypoints = [
+            ( 1.0, 0.0, 1.5),
+            (0.0, 0.0, 1.5),
+            ( -1.0, 0.0, 1.5),
+            ( 0.0, 0.0, 1.5),
+            ( 0.0, 1.0, 1.5),
+            ( 0.0, 0.0, 1.5),
+            ( 0.0, -1.0, 1.5),
+        ]
+
+        for (x, y, z) in new_waypoints:
             # Trigger go to pose function for every waypoint
-            task_control.goto_pose(x,y,1.5,0) # No idea what to input for yaw?
+            task_control.get_logger().info(f'Going yo point {x}, {y}, {z}')
+            task_control.goto_pose(x,y,z,0)
 
             # while not task_control.is_at_position(x, y, z):
             #     rclpy.spin_once(task_control, timeout_sec=0.1)
