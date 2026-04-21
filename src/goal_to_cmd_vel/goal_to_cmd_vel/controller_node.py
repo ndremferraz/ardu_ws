@@ -3,6 +3,7 @@ from rclpy.node import Node
 
 from nav_msgs.msg import Odometry
 from geometry_msgs.msg import PoseStamped, TwistStamped
+from std_msgs.msg import Bool
 
 import math
 
@@ -20,6 +21,12 @@ class GoalToCmdVel(Node):
         self.cmd_pub = self.create_publisher(
             TwistStamped,
             '/mavros/setpoint_velocity/cmd_vel',
+            10
+        )
+
+        self.goal_reached_pub = self.create_publisher(
+            Bool,
+            '/goal_reached',
             10
         )
 
@@ -46,8 +53,11 @@ class GoalToCmdVel(Node):
 
     def goal_callback(self, msg):
         self.goal_pose = msg.pose
-        self.goal_active = True  # NEW goal received → activate control
-        self.stop_sent = False # Allow movement again
+        self.goal_active = True
+        self.stop_sent = False
+
+        # Notify that we are working on a goal
+        self.publish_goal_reached(False)
 
     def publish_stop(self):
         cmd = TwistStamped()
@@ -60,6 +70,11 @@ class GoalToCmdVel(Node):
 
         self.cmd_pub.publish(cmd)
 
+    def publish_goal_reached(self, reached: bool):
+        msg = Bool()
+        msg.data = reached
+        self.goal_reached_pub.publish(msg)
+        
     def control_loop(self):
         # No goal or no odom → just hold
         if self.current_pose is None or self.goal_pose is None:
@@ -80,6 +95,7 @@ class GoalToCmdVel(Node):
         if lin_distance < self.lin_goal_tolerance and abs(dz) < self.ver_goal_tolerance:
             if not self.stop_sent:
                 self.publish_stop()
+                self.publish_goal_reached(True)
                 self.stop_sent = True
             self.goal_active = False
             return
