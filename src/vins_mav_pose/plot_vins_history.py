@@ -73,32 +73,27 @@ def load_series(csv_path, requested_source=None):
 
 
 def plot_series(data, csv_path):
-    fig, axes = plt.subplots(2, 1, figsize=(12, 8), sharex=True)
-
-    position_axis = axes[0]
-    orientation_axis = axes[1]
+    fig, axes = plt.subplots(6, 1, figsize=(12, 14), sharex=True)
+    components = [
+        ("x", "Position X"),
+        ("y", "Position Y"),
+        ("z", "Position Z"),
+        ("qx", "Quaternion X"),
+        ("qy", "Quaternion Y"),
+        ("qz", "Quaternion Z"),
+    ]
 
     for source, series in sorted(data.items()):
         time_values = series["time"]
-        position_axis.plot(time_values, series["x"], label=f"{source} x")
-        position_axis.plot(time_values, series["y"], label=f"{source} y")
-        position_axis.plot(time_values, series["z"], label=f"{source} z")
+        for axis, (component, title) in zip(axes, components):
+            axis.plot(time_values, series[component], label=source)
+            axis.set_title(title)
+            axis.set_ylabel(component)
+            axis.grid(True)
+            axis.legend()
 
-        orientation_axis.plot(time_values, series["qx"], label=f"{source} qx")
-        orientation_axis.plot(time_values, series["qy"], label=f"{source} qy")
-        orientation_axis.plot(time_values, series["qz"], label=f"{source} qz")
-
-    position_axis.set_title(f"Position vs Time: {csv_path.name}")
-    position_axis.set_ylabel("Position")
-    position_axis.grid(True)
-    position_axis.legend()
-
-    orientation_axis.set_title("Orientation (Quaternion XYZ) vs Time")
-    orientation_axis.set_xlabel("Time (s)")
-    orientation_axis.set_ylabel("Quaternion")
-    orientation_axis.grid(True)
-    orientation_axis.legend()
-
+    axes[0].set_title(f"{axes[0].get_title()}: {csv_path.name}")
+    axes[-1].set_xlabel("Time (s)")
     fig.tight_layout()
     plt.show()
 
