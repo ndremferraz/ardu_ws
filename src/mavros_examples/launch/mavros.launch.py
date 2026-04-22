@@ -7,6 +7,11 @@ import os
 
 def generate_launch_description():
     pose_source = LaunchConfiguration('pose_source')
+    bottom_cam_intr = LaunchConfiguration('bottom_cam_intr')
+    front_cam_intr = LaunchConfiguration('front_cam_intr')
+    uav_loc_topic = LaunchConfiguration('uav_loc_topic')
+    bottom_img_topic = LaunchConfiguration('bottom_img_topic')
+    front_img_topic = LaunchConfiguration('front_img_topic')
 
     config = os.path.join(
         get_package_share_directory('mavros_examples'),
@@ -27,6 +32,31 @@ def generate_launch_description():
             'pose_source',
             default_value='vins',
             description='Pose source for vins_mav_node: vins or vicon',
+        ),
+        DeclareLaunchArgument(
+            'bottom_cam_intr',
+            default_value='',
+            description='Path to the bottom camera OpenCV calibration file',
+        ),
+        DeclareLaunchArgument(
+            'front_cam_intr',
+            default_value='',
+            description='Path to the front camera OpenCV calibration file',
+        ),
+        DeclareLaunchArgument(
+            'uav_loc_topic',
+            default_value='/mavros/vision_pose/pose',
+            description='Pose topic used by the ArUco detector for the UAV pose',
+        ),
+        DeclareLaunchArgument(
+            'bottom_img_topic',
+            default_value='/bottom_img_topic',
+            description='Image topic for the bottom camera stream',
+        ),
+        DeclareLaunchArgument(
+            'front_img_topic',
+            default_value='/front_img_topic',
+            description='Image topic for the front camera stream',
         ),
         Node(
             package='mavros',
@@ -67,5 +97,20 @@ def generate_launch_description():
             executable='pose_to_odom_node',
             namespace='pose_to_odom_node',
             output='screen',
+        ),
+        Node(
+            package='uav_aruco',
+            executable='uav_aruco_node',
+            namespace='uav_aruco',
+            output='screen',
+            parameters=[
+                {
+                    'bottom_cam_intr': bottom_cam_intr,
+                    'front_cam_intr': front_cam_intr,
+                    'uav_loc_topic': uav_loc_topic,
+                    'bottom_img_topic': bottom_img_topic,
+                    'front_img_topic': front_img_topic,
+                }
+            ]
         ),
     ])
