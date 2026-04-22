@@ -318,6 +318,7 @@ def main(args=None):
         while not self.ugv_marker_found:
 
             dx, dy = task_control.waypoints_to_ugv()
+            task_control.get_logger().info(f'Going yo point {dx}, {dy}, {hover_height}')
             task_control.goto_pose(dx, dy, hover_height, 0.0)
         
         task_control.get_logger().info('Landing...')

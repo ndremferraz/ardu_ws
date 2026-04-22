@@ -41,6 +41,12 @@ install(PROGRAMS
   RENAME flight_test
 )
 
+install(PROGRAMS
+  ${PROJECT_NAME}/challenge2or3.py
+  DESTINATION lib/${PROJECT_NAME}
+  RENAME challenge2or3
+)
+
 
 install(DIRECTORY launch
   DESTINATION share/${PROJECT_NAME}
