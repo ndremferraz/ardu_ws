@@ -1,11 +1,10 @@
 #!/usr/bin/env python3
 import rclpy  # noqa: I100
-from geometry_msgs.msg import PoseStamped,TwistStamped  # noqa: F401,I100
+from geometry_msgs.msg import PoseStamped,TwistStamped,Point  # noqa: F401,I100
 from mavros_msgs.msg import State  # noqa: F401
 from mavros_msgs.srv import CommandBool, CommandTOL, SetMode
 from rclpy.node import Node
 from std_msgs.msg import Bool, String 
-import json
 
 import time
 import math
@@ -23,7 +22,7 @@ class TaskControl(Node):
         self.ugv_marker_found = False
 
         self.ugv_loc_sub = self.create_subscription(
-            String, "/uav/peer/ugv_location", self.ugv_loc_callback, 3)
+            Point, "/uav/peer/ugv_location", self.ugv_loc_callback, 3)
 
         self.goal_reached_sub = self.create_subscription(
             Bool, "/goal_reached", self.goal_callback, 3)
@@ -72,12 +71,8 @@ class TaskControl(Node):
 
     def ugv_loc_callback(self, msg):
 
-        try:
-            data = json.loads(msg.data)
-            self.ugv_loc_x = data["x"] 
-            self.ugv_loc_y = data["y"]
-        except (json.JSONDecodeError, KeyError, TypeError) as exc:
-            self.get_logger().warn(f'Failed to parse UGV location: {exc}')
+        self.ugv_loc_x = msg.x 
+        self.ugv_loc_y = msg.y
 
     def target_callback(self, msg):
 
@@ -246,9 +241,11 @@ class TaskControl(Node):
             self.get_logger().warn('Cannot compute next UGV step without cached UGV location')
             return None
 
-        dx = self.ugv_loc_x
-        dy = self.ugv_loc_y
+        dx = self.ugv_loc_x - self.current_pose.pose.position.x
+        dy = self.ugv_loc_y - self.current_pose.pose.position.y
         distance = math.sqrt(dx * dx + dy * dy)
+
+        self.get_logger().info(f'My Position x:{self.current_pose.pose.position.x}, y:{self.current_pose.pose.position.y}')
 
         if distance == 0.0:
             return 0.0, 0.0
@@ -257,7 +254,7 @@ class TaskControl(Node):
             return self.ugv_loc_x, self.ugv_loc_y
 
         scale = step_size / distance
-        return dx * scale, dy * scale
+        return self.ugv_loc_x * scale, self.ugv_loc_y * scale
 
 def main(args=None):
     rclpy.init(args=args)
@@ -308,17 +305,18 @@ def main(args=None):
 
         for (x, y, z) in search_waypoints:
             
-            task_control.get_logger().info(f'Going yo point {x}, {y}, {z}')
+            task_control.get_logger().info(f'Going to point {x}, {y}, {z}')
             task_control.goto_pose(x,y,z,0.0)
             if task_control.target_found: 
                 break
 
+        task_control.get_logger().info(f'Going to UGV Position')
         hover_height = 1.5        
 
-        while not self.ugv_marker_found:
+        while not task_control.ugv_marker_found:
 
             dx, dy = task_control.waypoints_to_ugv()
-            task_control.get_logger().info(f'Going yo point {dx}, {dy}, {hover_height}')
+            task_control.get_logger().info(f'Going to point {dx}, {dy}, {hover_height}')
             task_control.goto_pose(dx, dy, hover_height, 0.0)
         
         task_control.get_logger().info('Landing...')
