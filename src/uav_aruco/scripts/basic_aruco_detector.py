@@ -58,7 +58,7 @@ def parse_args():
     parser.add_argument(
         '--marker-length',
         type=float,
-        default=0.3048,
+        default=0.254,
         help='Marker side length in meters for pose estimation.',
     )
     parser.add_argument(
