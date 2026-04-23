@@ -22,7 +22,7 @@ class TaskControl(Node):
         self.ugv_marker_found = False
 
         self.ugv_loc_sub = self.create_subscription(
-            Point, "/uav/peer/ugv_location", self.ugv_loc_callback, 3)
+            PoseStamped, "/uav/bottom/pad_aruco_pose", self.ugv_loc_callback, 3)
 
         self.goal_reached_sub = self.create_subscription(
             Bool, "/goal_reached", self.goal_callback, 3)
@@ -71,8 +71,8 @@ class TaskControl(Node):
 
     def ugv_loc_callback(self, msg):
 
-        self.ugv_loc_x = msg.x 
-        self.ugv_loc_y = msg.y
+        self.ugv_loc_x = msg.pose.position.x 
+        self.ugv_loc_y = msg.pose.poistion.y
 
     def target_callback(self, msg):
 
@@ -290,7 +290,7 @@ def main(args=None):
             task_control.land()
             return
         task_control.get_logger().info('Drone is taking off...')
-        task_control.ros_sleep(5.0)  # Wait for takeoff to complete
+        task_control.ros_sleep(1.0)  # Wait for takeoff to complete
 
         # Executing Moving in pattern determined by waypoints until marker is found 
         '''search_waypoints = [
@@ -303,7 +303,7 @@ def main(args=None):
             ( 0.0, -1.0, 1.5),
         ]'''
         
-
+        '''
         for (x, y, z) in search_waypoints:
             
             task_control.get_logger().info(f'Going to point {x}, {y}, {z}')
@@ -312,16 +312,17 @@ def main(args=None):
                 break
 
         task_control.get_logger().info(f'Going to UGV Position')
-        hover_height = 1.5        
-
-        while not task_control.ugv_marker_found:
+        hover_height = 1.5 
+        '''       
+        end = time.monotonic() + duration_sec
+        while rclpy.ok() and time.monotonic() < end:
 
             dx, dy = task_control.waypoints_to_ugv()
             task_control.get_logger().info(f'Going to point {dx}, {dy}, {hover_height}')
             task_control.goto_pose(dx, dy, hover_height, 0.0)
         
         #Follows ArUco
-
+        
 
         task_control.get_logger().info('Landing...')
         if not task_control.land():
