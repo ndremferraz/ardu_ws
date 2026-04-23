@@ -29,7 +29,7 @@ FRONT_CAMERA_MATRIX = np.array([
 ], dtype=np.float64)
 FRONT_DISTORTION_COEFFICIENTS = np.array([
     [-0.0277096,
-     -0.0,151386,
+     -0.0151386,
      0.00012155500254070801,
      0.0005324040497094841,
      0.0]
