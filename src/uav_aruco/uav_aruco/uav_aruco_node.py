@@ -22,19 +22,6 @@ BOTTOM_DISTORTION_COEFFICIENTS = np.array([
      0.0005324040497094841,
      0.0]
 ], dtype=np.float64)
-FRONT_CAMERA_MATRIX = np.array([
-    [771.815, 0.0, 635.005],
-    [0.0, 771.815, 372.985],
-    [0.0, 0.0, 1.0]
-], dtype=np.float64)
-FRONT_DISTORTION_COEFFICIENTS = np.array([
-    [-0.0277096,
-     -0.0151386,
-     0.00012155500254070801,
-     0.0005324040497094841,
-     0.0]
-], dtype=np.float64)
-
 
 def quat_xyzw_to_matrix(quat):
     """Convert an xyzw quaternion into a 3x3 rotation matrix."""
@@ -65,33 +52,19 @@ class ArUcoDetector(Node):
         self.declare_parameter('uav_loc_topic', '/mavros/vision_pose/pose')
 
         self.declare_parameter('bottom_img_topic','/bottom_img_topic')
-        self.declare_parameter('front_img_topic','/front_img_topic')
 
         uav_loc_topic = self.get_parameter('uav_loc_topic').get_parameter_value().string_value
-
         bottom_img_topic = self.get_parameter('bottom_img_topic').get_parameter_value().string_value
-        front_img_topic = self.get_parameter('front_img_topic').get_parameter_value().string_value
 
         self.bottom_matrix_coefficients = BOTTOM_CAMERA_MATRIX
         self.bottom_distortion_coefficients = BOTTOM_DISTORTION_COEFFICIENTS
-        self.front_matrix_coefficients = FRONT_CAMERA_MATRIX
-        self.front_distortion_coefficients = FRONT_DISTORTION_COEFFICIENTS
-        
 
         self.bottom_target_pub = self.create_publisher(PoseStamped, "/uav/bottom/target_aruco_pose", 3)
-        self.front_target_pub = self.create_publisher(PoseStamped, "/uav/front/target_aruco_pose", 3)
         self.bottom_pad_pub = self.create_publisher(PoseStamped, "/uav/bottom/pad_aruco_pose", 3)
-        self.front_pad_pub = self.create_publisher(PoseStamped, "/uav/front/pad_aruco_pose", 3)
 
-        self.pose_sub = self.create_subscription(
-            PoseStamped,
-            uav_loc_topic, 
-            self.pose_callback,
-            10
-        )
+        self.pose_sub = self.create_subscription( PoseStamped, uav_loc_topic, self.pose_callback, 10)
 
         self.bottom_img_sub = self.create_subscription(Image, bottom_img_topic, self.bottom_img_callback, 3)
-        self.front_img_sub = self.create_subscription(Image, front_img_topic, self.front_img_callback, 3)
 
         self.get_logger().info(f"ArUco Detector Node Started. Listening on image_topic")
 
@@ -101,67 +74,6 @@ class ArUcoDetector(Node):
 
         if self.initial_pose is None:
             self.initial_pose = msg
-
-    def front_img_callback(self, msg: Image):
-
-        if self.current_pose is None or self.initial_pose is  None:
-            return 
-
-        try:
-            cv_image = self.bridge.imgmsg_to_cv2(msg, desired_encoding='bgr8')
-            dictionary = cv2.aruco.getPredefinedDictionary(cv2.aruco.DICT_6X6_50)
-            parameters = cv2.aruco.DetectorParameters_create()
-            corners, ids, rejected = cv2.aruco.detectMarkers(cv_image, dictionary, parameters=parameters)
-
-
-            if ids is not None:
-                for i in range(len(ids)):
-
-                    marker_id = int(ids[i][0])
-                    rvec, tvec, markerPoints = cv2.aruco.estimatePoseSingleMarkers(
-                        corners[i],
-                        MARKER_LENGTH,
-                        self.front_matrix_coefficients,
-                        self.front_distortion_coefficients,
-                    )
-                    
-                    pose_msg = PoseStamped()
-                    pose_msg.header = msg.header
-
-                    tx, ty, tz = tvec[0][0]
-
-                    if marker_id in GOAL_ID:
-
-                        t_vec_enu = np.array([tz,-tx,-ty])
-
-                        t_vec_project = self.marker_to_origin_frame(t_vec_enu)
-
-                        pose_msg.pose.position.x = t_vec_project[0] 
-                        pose_msg.pose.position.y = t_vec_project[1] 
-                        pose_msg.pose.position.z = t_vec_project[2] 
-
-                        self.front_target_pub.publish(pose_msg)
-                        self.get_logger().info(
-                            f"Detected ID {marker_id} at Pose [X:{pose_msg.pose.position.x:.2f}m, Y:{pose_msg.pose.position.y:.2f}m, Z:{pose_msg.pose.position.z:.2f}m]"
-                        )
-                    elif marker_id == LANDING_ID:
-
-                        # Rotating from front camera frame to Mavros ENU Frame
-                        pose_msg.pose.position.x = tz
-                        pose_msg.pose.position.y = -tx
-                        pose_msg.pose.position.z = -ty
-
-                        self.front_pad_pub.publish(pose_msg)
-                        self.get_logger().info(
-                            f"Detected landing pad ID {marker_id} at Pose [X:{pose_msg.pose.position.x:.2f}m, Y:{pose_msg.pose.position.y:.2f}m, Z:{pose_msg.pose.position.z:.2f}m]"
-                        )
-                    else:
-                        self.get_logger().info(f"Detected unknown marker: {marker_id}")
-            
-        except CvBridgeError as e:
-            self.get_logger().error(f"CvBridge Error: {e}")
-
-
 
     def bottom_img_callback(self, msg: Image):
 
@@ -191,26 +103,21 @@ class ArUcoDetector(Node):
 
                     tx, ty, tz = tvec[0][0]
 
-                    if marker_id in GOAL_ID:
-
-                        t_vec_enu = np.array([-ty,-tx,-tz])
+                    t_vec_enu = np.array([-ty,-tx,-tz])
                         
-                        t_vec_project = self.marker_to_origin_frame(t_vec_enu)
+                    t_vec_project = self.marker_to_origin_frame(t_vec_enu)
 
-                        pose_msg.pose.position.x = t_vec_project[0]
-                        pose_msg.pose.position.y = t_vec_project[1] 
-                        pose_msg.pose.position.z = t_vec_project[2] 
+                    pose_msg.pose.position.x = t_vec_project[0]
+                    pose_msg.pose.position.y = t_vec_project[1] 
+                    pose_msg.pose.position.z = t_vec_project[2] 
+
+                    if marker_id in GOAL_ID:
 
                         self.bottom_target_pub.publish(pose_msg)
                         self.get_logger().info(
                             f"Detected ID {marker_id} at Pose [X:{pose_msg.pose.position.x:.2f}m, Y:{pose_msg.pose.position.y:.2f}m, Z:{pose_msg.pose.position.z:.2f}m]"
                         )
                     elif marker_id == LANDING_ID:
-
-                        # Rotating from bottom camera frame to Mavros ENU Frame
-                        pose_msg.pose.position.x = -ty
-                        pose_msg.pose.position.y = -tx
-                        pose_msg.pose.position.z = -tz
 
                         self.bottom_pad_pub.publish(pose_msg)
                         self.get_logger().info(
