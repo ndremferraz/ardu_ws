@@ -12,6 +12,8 @@ def generate_launch_description():
     uav_loc_topic = LaunchConfiguration('uav_loc_topic')
     bottom_img_topic = LaunchConfiguration('bottom_img_topic')
     front_img_topic = LaunchConfiguration('front_img_topic')
+    uav_comms_device = LaunchConfiguration('uav_comms_device')
+    uav_comms_sim_mode = LaunchConfiguration('uav_comms_sim_mode')
 
     config = os.path.join(
         get_package_share_directory('mavros_examples'),
@@ -55,6 +57,16 @@ def generate_launch_description():
             'front_img_topic',
             default_value='/zed/zed_node/rgb/color/rect/image',
             description='Image topic for the front camera stream',
+        ),
+        DeclareLaunchArgument(
+            'uav_comms_device',
+            default_value='/dev/ttyUSB0',
+            description='Serial device used by radio_coms uav_comms_node',
+        ),
+        DeclareLaunchArgument(
+            'uav_comms_sim_mode',
+            default_value='False',
+            description='Whether radio_coms uav_comms_node should run in simulation mode',
         ),
         Node(
             package='mavros',
@@ -108,6 +120,18 @@ def generate_launch_description():
                     'uav_loc_topic': uav_loc_topic,
                     'bottom_img_topic': bottom_img_topic,
                     'front_img_topic': front_img_topic,
+                }
+            ]
+        ),
+        Node(
+            package='radio_coms',
+            executable='uav_comms_node',
+            namespace='radio_coms',
+            output='screen',
+            parameters=[
+                {
+                    'mav_device': uav_comms_device,
+                    'sim_mode': uav_comms_sim_mode,
                 }
             ]
         ),
