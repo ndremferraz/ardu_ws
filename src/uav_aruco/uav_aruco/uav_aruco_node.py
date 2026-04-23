@@ -7,7 +7,7 @@ from cv_bridge import CvBridge, CvBridgeError
 import numpy as np
 import cv2
 
-MARKER_LENGTH = 0.3048
+MARKER_LENGTH = 0.254
 GOAL_ID = {0,1,2,3,4}
 LANDING_ID = 5
 
