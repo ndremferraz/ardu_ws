@@ -61,7 +61,7 @@ class UavPeerCommsNode(Node):
         #vision pipeline publishes detected marker pose here
         self.create_subscription(
             PoseStamped,
-            "/uav/vision/marker_pose",
+            "/uav/front/target_aruco_pose",
             self._cb_marker_pose,
             10,
             callback_group=self._cbg,
