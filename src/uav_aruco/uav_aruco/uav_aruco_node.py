@@ -4,13 +4,29 @@ from sensor_msgs.msg import Image
 from geometry_msgs.msg import PoseStamped
 from cv_bridge import CvBridge, CvBridgeError
 
-from scipy.spatial.transform import Rotation as R
 import numpy as np
 import cv2
 
 MARKER_LENGTH = 0.3048
-GOAL_ID = {1,2,3,4}
-LANDING_ID = 0
+GOAL_ID = {0,1,2,3,4}
+LANDING_ID = 5
+
+
+def quat_xyzw_to_matrix(quat):
+    """Convert an xyzw quaternion into a 3x3 rotation matrix."""
+
+    quat = np.asarray(quat, dtype=float)
+    norm = np.linalg.norm(quat)
+    if norm == 0.0:
+        raise ValueError('Received zero-norm quaternion.')
+
+    x, y, z, w = quat / norm
+
+    return np.array([
+        [1.0 - 2.0 * (y * y + z * z), 2.0 * (x * y - z * w), 2.0 * (x * z + y * w)],
+        [2.0 * (x * y + z * w), 1.0 - 2.0 * (x * x + z * z), 2.0 * (y * z - x * w)],
+        [2.0 * (x * z - y * w), 2.0 * (y * z + x * w), 1.0 - 2.0 * (x * x + y * y)],
+    ])
 
 class ArUcoDetector(Node):
 
@@ -204,25 +220,27 @@ class ArUcoDetector(Node):
         ])
 
         # Initial and current drone orientations
-        q_initial = R.from_quat([
+        q_initial = np.array([
             self.initial_pose.pose.orientation.x,
             self.initial_pose.pose.orientation.y,
             self.initial_pose.pose.orientation.z,
             self.initial_pose.pose.orientation.w,
         ])
 
-        q_current = R.from_quat([
+        q_current = np.array([
             self.current_pose.pose.orientation.x,
             self.current_pose.pose.orientation.y,
             self.current_pose.pose.orientation.z,
             self.current_pose.pose.orientation.w,
         ])
 
-        # Rotation from current drone frame into initial/origin frame
-        r_origin_drone = q_initial.inv() * q_current
+        # Rotation from current drone frame into initial/origin frame.
+        r_initial_world = quat_xyzw_to_matrix(q_initial).T
+        r_world_drone = quat_xyzw_to_matrix(q_current)
+        r_origin_drone = r_initial_world @ r_world_drone
 
-        # Rotate marker vector into origin frame and add drone position
-        p_origin_marker = p_origin_drone + r_origin_drone.apply(t_vec_drone)
+        # Rotate marker vector into origin frame and add drone position.
+        p_origin_marker = p_origin_drone + (r_origin_drone @ t_vec_drone)
 
         return p_origin_marker
 
