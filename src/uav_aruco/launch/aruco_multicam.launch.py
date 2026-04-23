@@ -20,11 +20,6 @@ def generate_launch_description():
             default_value='/img_publisher',
             description='Image topic for the bottom camera stream',
         ),
-        DeclareLaunchArgument(
-            'front_img_topic',
-            default_value='/zed/zed_node/rgb/color/rect/image',
-            description='Image topic for the front camera stream',
-        ),
         Node(
             package='uav_aruco',
             executable='uav_aruco_node',

@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
 import rclpy  # noqa: I100
-from geometry_msgs.msg import PoseStamped,TwistStamped,Point  # noqa: F401,I100
+from geometry_msgs.msg import PoseStamped, TwistStamped  # noqa: F401,I100
 from mavros_msgs.msg import State  # noqa: F401
 from mavros_msgs.srv import CommandBool, CommandTOL, SetMode
 from rclpy.node import Node
-from std_msgs.msg import Bool, String 
+from std_msgs.msg import Bool, String
 
 import time
 import math
@@ -15,26 +15,29 @@ class TaskControl(Node):
 
         self.initial_pose = None
         self.current_pose = None
-        self.ugv_loc_x = None
-        self.ugv_loc_y = None
+
         self.goal_reached = False
+
         self.target_found = False
-        self.ugv_marker_found = False
+        self.pad_found = False
+
+        self.ugv_loc = None
+        self.pad_loc = None
 
         self.ugv_loc_sub = self.create_subscription(
-            Point, "/uav/peer/ugv_location", self.ugv_loc_callback, 3)
+            PoseStamped, "/uav/peer/ugv_location", self.ugv_loc_callback, 3)
 
         self.goal_reached_sub = self.create_subscription(
             Bool, "/goal_reached", self.goal_callback, 3)
 
         self.target_sub = self.create_subscription(
-            PoseStamped, "/ugv/goal_pose", self.target_callback, 3)
+            PoseStamped, "/target_aruco_pose", self.target_callback, 3)
 
-        self.ugv_marker_sub = self.create_subscription(
-            PoseStamped, "/uav/landing_pad_pose", self.ugv_marker_callback, 3)
+        self.pad_sub = self.create_subscription(
+            PoseStamped, "/pad_aruco_pose", self.pad_callback, 3)
 
         self.pose_sub = self.create_subscription(
-            PoseStamped, "/mavros/vision_pose/pose", self.pose_callback, 3)
+            PoseStamped, "/zed/zed_node/pose", self.pose_callback, 3)
 
         self.goal_pose_pub = self.create_publisher(
             PoseStamped, '/goal_pose', 3)
@@ -66,13 +69,11 @@ class TaskControl(Node):
     def goal_callback(self, goal_msg):
 
         self.get_logger().info(f'Goal Reached message received: {goal_msg}')
-
         self.goal_reached = goal_msg.data
 
     def ugv_loc_callback(self, msg):
 
-        self.ugv_loc_x = msg.x 
-        self.ugv_loc_y = msg.y
+        self.ugv_loc = msg 
 
     def target_callback(self, msg):
 
@@ -80,12 +81,13 @@ class TaskControl(Node):
             self.get_logger().info('Target pose received')
             self.target_found = True
 
-    def ugv_marker_callback(self, msg):
+    def pad_callback(self, msg):
 
-        if not self.ugv_marker_found:
-            self.get_logger().info('UGV marker pose received')
-            self.ugv_marker_found = True
+        if not self.pad_found:
+            self.get_logger().info('Pad pose received')
+            self.pad_found = True
 
+        self.pad_loc = msg
     
 
     def arm(self) -> bool:
@@ -236,28 +238,89 @@ class TaskControl(Node):
             rclpy.spin_once(self, timeout_sec=0.1)
 
     def waypoints_to_ugv(self, step_size=1.0):
-        """Return the next step toward the current UGV position."""
-        if self.ugv_loc_x is None or self.ugv_loc_y is None:
+        """Return the next x/y waypoint toward the current UGV pose."""
+        if self.ugv_loc is None or self.current_pose is None or self.initial_pose is None:
             self.get_logger().warn('Cannot compute next UGV step without cached UGV location')
             return None
 
-        dx = self.ugv_loc_x - self.current_pose.pose.position.x
-        dy = self.ugv_loc_y - self.current_pose.pose.position.y
-        distance = math.sqrt(dx * dx + dy * dy)
+        current_x = self.current_pose.pose.position.x - self.initial_pose.pose.position.x
+        current_y = self.current_pose.pose.position.y - self.initial_pose.pose.position.y
+        target_x = self.ugv_loc.pose.position.x
+        target_y = self.ugv_loc.pose.position.y
 
-        self.get_logger().info(f'My Position x:{self.current_pose.pose.position.x}, y:{self.current_pose.pose.position.y}')
+        dx = target_x - current_x
+        dy = target_y - current_y
+        distance = math.hypot(dx, dy)
+
+        self.get_logger().info(f'My Position x:{current_x}, y:{current_y}')
 
         if distance == 0.0:
-            return 0.0, 0.0
+            return current_x, current_y
 
         if distance <= step_size:
-            return self.ugv_loc_x, self.ugv_loc_y
+            return target_x, target_y
 
         scale = step_size / distance
-        return self.ugv_loc_x * scale, self.ugv_loc_y * scale
+        return current_x + (dx * scale), current_y + (dy * scale)
+
+    def waypoints_to_pad(self, step_size=1.5):
+        """Return the next x/y/z waypoint toward the current pad pose."""
+        if self.pad_loc is None or self.current_pose is None or self.initial_pose is None:
+            self.get_logger().warn('Cannot compute next pad step without cached pad location')
+            return None
+
+        current_x = self.current_pose.pose.position.x - self.initial_pose.pose.position.x
+        current_y = self.current_pose.pose.position.y - self.initial_pose.pose.position.y
+        current_z = self.current_pose.pose.position.z - self.initial_pose.pose.position.z
+        target_x = self.pad_loc.pose.position.x
+        target_y = self.pad_loc.pose.position.y
+        target_z = self.pad_loc.pose.position.z
+
+        dx = target_x - current_x
+        dy = target_y - current_y
+        dz = target_z - current_z
+        distance = math.sqrt(dx * dx + dy * dy + dz * dz)
+
+        self.get_logger().info(f'My Position x:{current_x}, y:{current_y}, z:{current_z}')
+
+        if distance == 0.0:
+            return current_x, current_y, current_z
+
+        if distance <= step_size:
+            return target_x, target_y, target_z
+
+        scale = step_size / distance
+        return (
+            current_x + (dx * scale),
+            current_y + (dy * scale),
+            current_z + (dz * scale),
+        )
+
+    def ready_to_land(self, xy_tolerance=0.2, z_tolerance=0.15):
+        """Return True when the vehicle is close enough to the cached pad pose."""
+        if self.pad_loc is None or self.current_pose is None or self.initial_pose is None:
+            self.get_logger().warn('Cannot evaluate landing readiness without current pose and pad pose')
+            return False
+
+        current_x = self.current_pose.pose.position.x - self.initial_pose.pose.position.x
+        current_y = self.current_pose.pose.position.y - self.initial_pose.pose.position.y
+        current_z = self.current_pose.pose.position.z - self.initial_pose.pose.position.z
+        pad_x = self.pad_loc.pose.position.x
+        pad_y = self.pad_loc.pose.position.y
+        pad_z = self.pad_loc.pose.position.z
+
+        xy_error = math.hypot(pad_x - current_x, pad_y - current_y)
+        z_error = abs(pad_z - current_z)
+        ready = xy_error <= xy_tolerance and z_error <= z_tolerance
+
+        self.get_logger().info(
+            f'Landing check xy_error={xy_error:.2f}, z_error={z_error:.2f}, ready={ready}'
+        )
+        return ready
 
 def main(args=None):
     rclpy.init(args=args)
+    task_control = None
 
     try:
         task_control = TaskControl()
@@ -293,7 +356,7 @@ def main(args=None):
         task_control.ros_sleep(5.0)  # Wait for takeoff to complete
 
         # Executing Moving in pattern determined by waypoints until marker is found 
-        '''search_waypoints = [
+        search_waypoints = [
             ( 1.0, 0.0, 1.5),
             (0.0, 0.0, 1.5),
             ( -1.0, 0.0, 1.5),
@@ -301,7 +364,7 @@ def main(args=None):
             ( 0.0, 1.0, 1.5),
             ( 0.0, 0.0, 1.5),
             ( 0.0, -1.0, 1.5),
-        ]'''
+        ]
         
 
         for (x, y, z) in search_waypoints:
@@ -314,13 +377,27 @@ def main(args=None):
         task_control.get_logger().info(f'Going to UGV Position')
         hover_height = 1.5        
 
-        while not task_control.ugv_marker_found:
+        while not task_control.pad_found:
 
-            dx, dy = task_control.waypoints_to_ugv()
+            waypoint = task_control.waypoints_to_ugv()
+            if waypoint is None:
+                rclpy.spin_once(task_control, timeout_sec=0.1)
+                continue
+
+            dx, dy = waypoint
             task_control.get_logger().info(f'Going to point {dx}, {dy}, {hover_height}')
             task_control.goto_pose(dx, dy, hover_height, 0.0)
         
-        #Follows ArUco
+        while not task_control.ready_to_land():
+
+            waypoint = task_control.waypoints_to_pad()
+            if waypoint is None:
+                rclpy.spin_once(task_control, timeout_sec=0.1)
+                continue
+
+            dx, dy, dz = waypoint
+            task_control.get_logger().info(f'Going to point {dx}, {dy}, {dz}')
+            task_control.goto_pose(dx, dy, dz, 0.0)
 
 
         task_control.get_logger().info('Landing...')
@@ -334,7 +411,8 @@ def main(args=None):
     except Exception as e:
         task_control.get_logger().error(f'An error occurred: {e}')
     finally:
-        task_control.destroy_node()
+        if task_control is not None:
+            task_control.destroy_node()
         rclpy.shutdown()
 
 
