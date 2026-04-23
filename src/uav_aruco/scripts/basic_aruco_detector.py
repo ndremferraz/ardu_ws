@@ -47,7 +47,7 @@ def parse_args():
     parser.add_argument(
         '--camera',
         type=int,
-        default=0,
+        default=2,
         help='Camera index to open when --image is not provided.',
     )
     parser.add_argument(
