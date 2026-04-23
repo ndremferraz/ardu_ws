@@ -78,10 +78,10 @@ class ArUcoDetector(Node):
         self.front_distortion_coefficients = FRONT_DISTORTION_COEFFICIENTS
         
 
-        self.bottom_target_pub = self.create_publisher(PoseStamped, "uav/bottom/target_aruco_pose", 3)
-        self.front_target_pub = self.create_publisher(PoseStamped, "uav/front/target_aruco_pose", 3)
-        self.bottom_pad_pub = self.create_publisher(PoseStamped, "uav/bottom/pad_aruco_pose", 3)
-        self.front_pad_pub = self.create_publisher(PoseStamped, "uav/front/pad_aruco_pose", 3)
+        self.bottom_target_pub = self.create_publisher(PoseStamped, "/uav/bottom/target_aruco_pose", 3)
+        self.front_target_pub = self.create_publisher(PoseStamped, "/uav/front/target_aruco_pose", 3)
+        self.bottom_pad_pub = self.create_publisher(PoseStamped, "/uav/bottom/pad_aruco_pose", 3)
+        self.front_pad_pub = self.create_publisher(PoseStamped, "/uav/front/pad_aruco_pose", 3)
 
         self.pose_sub = self.create_subscription(
             PoseStamped,
