@@ -10,6 +10,30 @@ import cv2
 MARKER_LENGTH = 0.254
 GOAL_ID = {0,1,2,3,4}
 LANDING_ID = 5
+BOTTOM_CAMERA_MATRIX = np.array([
+    [311.2275116435304, 0.0, 302.7510972126],
+    [0.0, 311.65181697045796, 225.589028786722],
+    [0.0, 0.0, 1.0],
+], dtype=np.float64)
+BOTTOM_DISTORTION_COEFFICIENTS = np.array([
+    [-0.04422166943796803,
+     0.01770872063406505,
+     0.00012155500254070801,
+     0.0005324040497094841,
+     0.0]
+], dtype=np.float64)
+FRONT_CAMERA_MATRIX = np.array([
+    [311.2275116435304, 0.0, 302.7510972126],
+    [0.0, 311.65181697045796, 225.589028786722],
+    [0.0, 0.0, 1.0],
+], dtype=np.float64)
+FRONT_DISTORTION_COEFFICIENTS = np.array([
+    [-0.04422166943796803,
+     0.01770872063406505,
+     0.00012155500254070801,
+     0.0005324040497094841,
+     0.0]
+], dtype=np.float64)
 
 
 def quat_xyzw_to_matrix(quat):
@@ -38,28 +62,20 @@ class ArUcoDetector(Node):
         self.current_pose = None 
         self.initial_pose = None
 
-        self.declare_parameter('bottom_cam_intr', '')
-        self.declare_parameter('front_cam_intr', '')
         self.declare_parameter('uav_loc_topic', '/mavros/vision_pose/pose')
 
         self.declare_parameter('bottom_img_topic','/bottom_img_topic')
         self.declare_parameter('front_img_topic','/front_img_topic')
 
-        bottom_cam_intr = self.get_parameter('bottom_cam_intr').get_parameter_value().string_value
-        front_cam_intr = self.get_parameter('front_cam_intr').get_parameter_value().string_value
         uav_loc_topic = self.get_parameter('uav_loc_topic').get_parameter_value().string_value
 
         bottom_img_topic = self.get_parameter('bottom_img_topic').get_parameter_value().string_value
         front_img_topic = self.get_parameter('front_img_topic').get_parameter_value().string_value
 
-        self.bottom_matrix_coefficients, self.bottom_distortion_coefficients = self.get_camera_matrices(
-            bottom_cam_intr,
-            'bottom_cam_intr',
-        )
-        self.front_matrix_coefficients, self.front_distortion_coefficients = self.get_camera_matrices(
-            front_cam_intr,
-            'front_cam_intr',
-        )
+        self.bottom_matrix_coefficients = BOTTOM_CAMERA_MATRIX
+        self.bottom_distortion_coefficients = BOTTOM_DISTORTION_COEFFICIENTS
+        self.front_matrix_coefficients = FRONT_CAMERA_MATRIX
+        self.front_distortion_coefficients = FRONT_DISTORTION_COEFFICIENTS
         
 
         self.bottom_target_pub = self.create_publisher(PoseStamped, "uav/bottom/target_aruco_pose", 3)
@@ -243,38 +259,6 @@ class ArUcoDetector(Node):
         p_origin_marker = p_origin_drone + (r_origin_drone @ t_vec_drone)
 
         return p_origin_marker
-
-    def get_camera_matrices(self, path_to_calibration, parameter_name):
-
-        if not path_to_calibration:
-            raise ValueError(
-                f"Parameter '{parameter_name}' is empty. Set it to a valid OpenCV calibration file."
-            )
-
-        fs = cv2.FileStorage(path_to_calibration, cv2.FILE_STORAGE_READ)
-        if not fs.isOpened():
-            raise RuntimeError(
-                f"Could not open calibration file '{path_to_calibration}' from parameter '{parameter_name}'."
-            )
-
-        camera_matrix_node = fs.getNode('camera_matrix')
-        dist_coeffs_node = fs.getNode('distortion_coeffs')
-        camera_matrix = camera_matrix_node.mat() if not camera_matrix_node.empty() else None
-        dist_coeffs = dist_coeffs_node.mat() if not dist_coeffs_node.empty() else None
-
-        fs.release()
-
-        if camera_matrix is None or camera_matrix.size == 0:
-            raise RuntimeError(
-                f"Calibration file '{path_to_calibration}' is missing 'camera_matrix'."
-            )
-
-        if dist_coeffs is None or dist_coeffs.size == 0:
-            raise RuntimeError(
-                f"Calibration file '{path_to_calibration}' is missing 'distortion_coeffs'."
-            )
-
-        return camera_matrix, dist_coeffs
 
     def destroy_node(self):
         self.get_logger().info("Shutting down ArUco Detector")
