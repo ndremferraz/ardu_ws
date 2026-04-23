@@ -25,8 +25,6 @@ def generate_launch_description():
         'apm_pluginlists.yaml'
     )
 
-    
-
     return LaunchDescription([
         DeclareLaunchArgument(
             'pose_source',
@@ -35,12 +33,12 @@ def generate_launch_description():
         ),
         DeclareLaunchArgument(
             'bottom_cam_intr',
-            default_value='',
+            default_value='/home/gwcs/ardu_ws/bottom_calib.yaml',
             description='Path to the bottom camera OpenCV calibration file',
         ),
         DeclareLaunchArgument(
             'front_cam_intr',
-            default_value='',
+            default_value='/home/gwcs/ardu_ws/left_calib.yaml',
             description='Path to the front camera OpenCV calibration file',
         ),
         DeclareLaunchArgument(
@@ -50,12 +48,12 @@ def generate_launch_description():
         ),
         DeclareLaunchArgument(
             'bottom_img_topic',
-            default_value='/bottom_img_topic',
+            default_value='/img_publisher',
             description='Image topic for the bottom camera stream',
         ),
         DeclareLaunchArgument(
             'front_img_topic',
-            default_value='/front_img_topic',
+            default_value='/zed/zed_node/rgb/color/rect/image',
             description='Image topic for the front camera stream',
         ),
         Node(
@@ -112,5 +110,11 @@ def generate_launch_description():
                     'front_img_topic': front_img_topic,
                 }
             ]
+        ),
+        Node(
+            package='multicam',
+            executable='multicam_node',
+            namespace='multicam_node',
+            output='screen',
         ),
     ])

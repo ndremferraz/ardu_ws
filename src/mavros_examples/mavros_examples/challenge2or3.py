@@ -293,7 +293,7 @@ def main(args=None):
         task_control.ros_sleep(5.0)  # Wait for takeoff to complete
 
         # Executing Moving in pattern determined by waypoints until marker is found 
-        search_waypoints = [
+        '''search_waypoints = [
             ( 1.0, 0.0, 1.5),
             (0.0, 0.0, 1.5),
             ( -1.0, 0.0, 1.5),
@@ -301,7 +301,8 @@ def main(args=None):
             ( 0.0, 1.0, 1.5),
             ( 0.0, 0.0, 1.5),
             ( 0.0, -1.0, 1.5),
-        ]
+        ]'''
+        
 
         for (x, y, z) in search_waypoints:
             
@@ -319,6 +320,9 @@ def main(args=None):
             task_control.get_logger().info(f'Going to point {dx}, {dy}, {hover_height}')
             task_control.goto_pose(dx, dy, hover_height, 0.0)
         
+        #Follows ArUco
+
+
         task_control.get_logger().info('Landing...')
         if not task_control.land():
             task_control.get_logger().error('Failed to send land, land manually')
