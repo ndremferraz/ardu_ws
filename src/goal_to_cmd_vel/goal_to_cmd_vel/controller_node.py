@@ -1,7 +1,6 @@
 import rclpy
 from rclpy.node import Node
 
-from nav_msgs.msg import Odometry
 from geometry_msgs.msg import PoseStamped, TwistStamped
 from std_msgs.msg import Bool
 
@@ -12,8 +11,8 @@ class GoalToCmdVel(Node):
     def __init__(self):
         super().__init__('goal_to_cmd_vel')
 
-        self.odom_sub = self.create_subscription(
-            Odometry, '/odom', self.odom_callback, 10)
+        self.pose_sub = self.create_subscription(
+            PoseStamped, '/mavros/vision_pose/pose', self.pose_callback, 10)
 
         self.goal_sub = self.create_subscription(
             PoseStamped, '/goal_pose', self.goal_callback, 10)
@@ -48,8 +47,8 @@ class GoalToCmdVel(Node):
 
         self.timer = self.create_timer(0.1, self.control_loop)
 
-    def odom_callback(self, msg):
-        self.current_pose = msg.pose.pose
+    def pose_callback(self, msg):
+        self.current_pose = msg.pose
 
     def goal_callback(self, msg):
         self.goal_pose = msg.pose
@@ -76,7 +75,7 @@ class GoalToCmdVel(Node):
         self.goal_reached_pub.publish(msg)
         
     def control_loop(self):
-        # No goal or no odom → just hold
+        # No goal or no current pose -> just hold
         if self.current_pose is None or self.goal_pose is None:
             return
 
