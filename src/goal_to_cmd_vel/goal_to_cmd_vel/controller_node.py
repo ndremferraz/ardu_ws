@@ -36,9 +36,9 @@ class GoalToCmdVel(Node):
         self.stop_sent = False
 
         #Parameters
-        self.k_lin = 1.0
+        self.k_lin = 0.4
         self.lin_goal_tolerance = 0.25
-        self.max_lin = 1.0
+        self.max_lin = 0.4
 
         # separate vertical gain
         self.ver_goal_tolerance = 0.1
