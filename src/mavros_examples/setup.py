@@ -26,6 +26,7 @@ setup(
             'hover_test = mavros_examples.hover_test:main',
             'takeoff_and_wait = mavros_examples.takeoff_and_wait:main',
             'flight_test = mavros_examples.flight_test',
+            'flight_test_v2 = mavros_examples.flight_test_v2:main',
             'challenge2or3 = mavros_examples.challenge2or3'
             
         ],
