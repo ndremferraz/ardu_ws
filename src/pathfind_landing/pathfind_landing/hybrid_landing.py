@@ -6,25 +6,22 @@ Methodology 3: Hybrid shadow-then-descend landing on a moving UGV.
 
 Strategy:
     Phase 1 — SHADOW:
-        Track /uav/landing_pad_pose each tick, publishing the pad's world-frame
+        Track /uav/bottom/pad_aruco_pose each tick, publishing the pad's world-frame
         XY at float_height for pursuit_seconds. UAV implicitly matches UGV
         velocity by continuously updating its setpoint each tick.
 
     Phase 2 — DESCENT:
         After pursuit_seconds elapses, begin closure-coupled descent each tick:
-            dZ = DESCENT_GAIN * Z * (lateral_speed / lateral_distance)
-        UAV is already above pad — descent begins with near-zero lateral error.
+            dZ = DESCENT_GAIN * target_z * (lateral_speed / lateral_distance)
+        target_z accumulates each tick — drone descends continuously regardless
+        of lateral closure ratio, floored at MIN_DESCENT_RATE.
 
 Control pattern:
     Near-continuous publish at TICK_RATE_HZ. Each tick publishes one setpoint
     and calls spin_once before the next. No goal_reached gating.
 
-Arguments (top of file):
-    FLOAT_HEIGHT      Altitude to shadow UGV during pursuit (m)
-    PURSUIT_SECONDS   Duration to shadow before descent begins (s)
-
 Topics:
-    /uav/landing_pad_pose        PoseStamped  Live pad/UGV position
+    /uav/bottom/pad_aruco_pose   PoseStamped  Live pad/UGV position
     /mavros/vision_pose/pose     PoseStamped  UAV own position (world frame)
     /goal_pose                   PoseStamped  Setpoint output
 
@@ -54,12 +51,13 @@ HOVER_DURATION          = 1.0    # Stability hover before sequence begins (s)
 TICK_RATE_HZ            = 10     # Setpoint publish rate for all phases
 VELOCITY_WINDOW         = 8      # Rolling average buffer size for pad velocity
 DESCENT_GAIN            = 1.0    # Scalar on closure-coupled descent law
-MIN_DESCENT_RATE        = 0.05   # Floor descent rate (m/s)
-MAX_DESCENT_RATE        = 0.5    # Ceiling descent rate (m/s)
+MIN_DESCENT_RATE        = 0.5    # Floor descent rate (m/s)
+XY_SPEED                = 0.5    # Max XY step per tick (m/s) — prevents oscillation
+MAX_DESCENT_RATE        = 1.5    # Ceiling descent rate (m/s)
 LAND_Z_THRESHOLD        = 0.15   # Altitude below which we call land()
 
 # Toggle once pad pose frame is confirmed empirically
-PAD_POSE_RELATIVE       = False   # True = pad pose relative to UAV/initial_pose
+PAD_POSE_RELATIVE       = False  # True = pad pose relative to UAV/initial_pose
 # ---------------------------------------------------------------------------
 
 
@@ -315,7 +313,6 @@ class HybridLanding(Node):
             pad_wx, pad_wy = self._pad_world_xy()
 
             if pad_wx is None:
-                # No pad data yet — hold current position
                 self.get_logger().warn('SHADOW: awaiting pad pose, holding.')
                 if self.current_pose is not None:
                     p = self.current_pose.pose.position
@@ -330,7 +327,16 @@ class HybridLanding(Node):
             else:
                 target_yaw = math.atan2(pad_wy - cp.y, pad_wx - cp.x)
 
-            self.publish_setpoint(pad_wx, pad_wy, float_height, target_yaw)
+            dx = pad_wx - cp.x
+            dy = pad_wy - cp.y
+            dist = math.hypot(dx, dy)
+            if dist > 1e-3:
+                scale = min(1.0, (XY_SPEED / TICK_RATE_HZ) / dist)
+                cmd_x = cp.x + dx * scale
+                cmd_y = cp.y + dy * scale
+            else:
+                cmd_x, cmd_y = pad_wx, pad_wy
+            self.publish_setpoint(cmd_x, cmd_y, float_height, target_yaw)
             self._log('SHADOW')
 
             self.get_logger().info(
@@ -344,17 +350,22 @@ class HybridLanding(Node):
         """
         Phase 2: Closure-coupled descent from above UGV.
 
+        target_z accumulates each tick rather than reading from current_pose,
+        ensuring continuous descent regardless of FCU lag.
+
         Each tick:
           - Resolve pad world XY
           - Compute lateral distance and rolling velocity
-          - dZ = DESCENT_GAIN * Z * (lat_speed / lat_dist), clamped
-          - Publish setpoint at (pad_wx, pad_wy, Z - dZ*dt)
-          - spin_once, repeat until Z <= LAND_Z_THRESHOLD
+          - dZ = DESCENT_GAIN * target_z * (lat_speed / lat_dist), clamped
+          - target_z -= dz * dt  (persistent accumulator)
+          - Publish setpoint at (pad_wx, pad_wy, target_z)
+          - spin_once, repeat until target_z <= LAND_Z_THRESHOLD
         """
         self.get_logger().info('Phase 2 DESCENT: beginning closure-coupled descent.')
 
-        tick = 1.0 / TICK_RATE_HZ
-        dt   = tick
+        tick     = 1.0 / TICK_RATE_HZ
+        dt       = tick
+        target_z = self.current_pose.pose.position.z  # persistent, accumulates descent
 
         while rclpy.ok():
             rclpy.spin_once(self, timeout_sec=tick)
@@ -363,7 +374,6 @@ class HybridLanding(Node):
                 continue
 
             cp = self.current_pose.pose.position
-            z  = cp.z
 
             pad_wx, pad_wy = self._pad_world_xy()
             if pad_wx is None:
@@ -375,20 +385,30 @@ class HybridLanding(Node):
 
             closure_ratio = (lat_speed / lat_dist) if lat_dist > 1e-3 else 1.0
 
-            raw_dz = DESCENT_GAIN * z * closure_ratio
-            dz     = max(MIN_DESCENT_RATE, min(MAX_DESCENT_RATE, raw_dz))
-            new_z  = max(0.0, z - dz * dt)
+            raw_dz   = DESCENT_GAIN * target_z * closure_ratio
+            dz       = max(MIN_DESCENT_RATE, min(MAX_DESCENT_RATE, raw_dz))
+            new_z    = max(0.0, target_z - dz * dt)
+            target_z = new_z  # accumulate — next tick descends from here
 
             target_yaw = math.atan2(pad_wy - cp.y, pad_wx - cp.x)
 
-            self.publish_setpoint(pad_wx, pad_wy, new_z, target_yaw)
+            dx = pad_wx - cp.x
+            dy = pad_wy - cp.y
+            dist = math.hypot(dx, dy)
+            if dist > 1e-3:
+                scale = min(1.0, (XY_SPEED / TICK_RATE_HZ) / dist)
+                cmd_x = cp.x + dx * scale
+                cmd_y = cp.y + dy * scale
+            else:
+                cmd_x, cmd_y = pad_wx, pad_wy
+            self.publish_setpoint(cmd_x, cmd_y, target_z, target_yaw)
             self._log('DESCENT')
 
             self.get_logger().info(
-                f'DESCENT: lat={lat_dist:.2f}m  z={new_z:.2f}m  '
+                f'DESCENT: lat={lat_dist:.2f}m  z={target_z:.2f}m  '
                 f'dz={dz:.3f}m/s  v=({vx:.2f},{vy:.2f})')
 
-            if new_z <= LAND_Z_THRESHOLD:
+            if target_z <= LAND_Z_THRESHOLD:
                 self.get_logger().info('Threshold reached — landing.')
                 self.land()
                 break
