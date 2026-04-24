@@ -29,7 +29,6 @@ def generate_launch_description():
                 {
                     'uav_loc_topic': uav_loc_topic,
                     'bottom_img_topic': bottom_img_topic,
-                    'front_img_topic': front_img_topic,
                 }
             ],
         ),
