@@ -47,6 +47,17 @@ install(PROGRAMS
   RENAME challenge2or3
 )
 
+install(PROGRAMS
+  ${PROJECT_NAME}/challenge2.1.py
+  DESTINATION lib/${PROJECT_NAME}
+  RENAME challenge2.1
+)
+
+install(PROGRAMS
+  ${PROJECT_NAME}/challenge2.2.py
+  DESTINATION lib/${PROJECT_NAME}
+  RENAME challenge2.2
+)
 
 install(DIRECTORY launch
   DESTINATION share/${PROJECT_NAME}
