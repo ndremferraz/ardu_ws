@@ -241,6 +241,16 @@ class TaskControl(Node):
         """Return the next x/y waypoint toward the current UGV pose."""
         if self.ugv_loc is None or self.current_pose is None or self.initial_pose is None:
             self.get_logger().warn('Cannot compute next UGV step without cached UGV location')
+
+            if self.ugv_loc is None:
+                self.get_logger().warn('UGV loc in None')
+
+            if self.current_pose is None:
+                self.get_logger().warn('Current Pose is None')
+
+            if self.initial_pose is None:
+                self.get_logger().warn('Initial Pose is None')
+            
             return None
 
         current_x = self.current_pose.pose.position.x - self.initial_pose.pose.position.x

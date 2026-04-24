@@ -17,7 +17,7 @@ def generate_launch_description():
         ),
         DeclareLaunchArgument(
             'bottom_img_topic',
-            default_value='/img_publisher',
+            default_value='/multicam/img_publisher',
             description='Image topic for the bottom camera stream',
         ),
         Node(
@@ -35,7 +35,7 @@ def generate_launch_description():
         Node(
             package='multicam',
             executable='multicam_node',
-            namespace='multicam_node',
+            namespace='multicam',
             output='screen',
         ),
     ])
