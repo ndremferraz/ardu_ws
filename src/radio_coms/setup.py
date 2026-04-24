@@ -25,7 +25,7 @@ setup(
     entry_points={
         'console_scripts': [
             'ugv_comms_node = radio_coms.ugv_comms_node:main',
-            'uav_comms_node = radio_coms.uav_comms_node:main',
+            'uav_comms_node = radio_coms.uav_comms_node:main'
         ],
     },
 )

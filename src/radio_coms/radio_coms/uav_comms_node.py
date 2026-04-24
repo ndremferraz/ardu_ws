@@ -61,14 +61,14 @@ class UavPeerCommsNode(Node):
         #vision pipeline publishes detected marker pose here
         self.create_subscription(
             PoseStamped,
-            "/uav/front/target_aruco_pose",
+            "/target_aruco_pose",
             self._cb_marker_pose,
             10,
             callback_group=self._cbg,
         )
 
         self._pub_ugv_location = self.create_publisher(
-            String, "/uav/peer/ugv_location", 10
+            PoseStamped, "/uav/peer/ugv_location", 10
         )
         self._pub_status = self.create_publisher(
             String, "/uav/peer/status", 10
@@ -143,10 +143,9 @@ class UavPeerCommsNode(Node):
             self.get_logger().info(
                 f"[PEER RX] UGV LOCATION  x={x:.2f}m  y={y:.2f}m  hdg={heading:.1f}°"
             )
-            payload = String()
-            payload.data = (
-                f'{{"source":"ugv","x":{x:.3f},"y":{y:.3f},"heading":{heading:.1f}}}'
-            )
+            payload = PoseStamped()
+            payload.pose.position.x = x
+            payload.pose.position.y = y
             self._pub_ugv_location.publish(payload)
         else:
             self.get_logger().warn(f"Unhandled command {cmd} from UGV")
