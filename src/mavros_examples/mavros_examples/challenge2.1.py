@@ -487,7 +487,9 @@ def main(args=None):
                 break
 
         task_control.get_logger().info(f'Going to UGV Position')
-        hover_height = 1.5        
+        hover_height = 1.5     
+
+        task_control.pad_found = False   
 
         while not task_control.pad_found:
 
